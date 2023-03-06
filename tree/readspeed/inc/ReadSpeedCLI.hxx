@@ -25,6 +25,7 @@ void PrintThroughput(const Result &r);
 struct Args {
    Data fData;
    unsigned int fNThreads = 0;
+   bool fEvalNTuple = false;
    bool fAllBranches = false;
    bool fShouldRun = false;
 };

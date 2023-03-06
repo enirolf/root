@@ -20,13 +20,13 @@
 namespace ReadSpeed {
 
 struct Data {
-   /// Either a single tree name common for all files, or one tree name per file.
-   std::vector<std::string> fTreeNames;
+   /// Either a single tree/ntuple name common for all files, or one tree/ntuple name per file.
+   std::vector<std::string> fTreeOrNTupleNames;
    /// List of input files.
    std::vector<std::string> fFileNames;
-   /// Branches to read.
-   std::vector<std::string> fBranchNames;
-   /// If the branch names should use regex matching.
+   /// Branches/fields to read.
+   std::vector<std::string> fBranchOrFieldNames;
+   /// If the branch/field names should use regex matching.
    bool fUseRegex = false;
 };
 
@@ -39,7 +39,7 @@ struct Result {
    double fMTSetupRealTime;
    /// CPU time spent preparing the multi-thread workload.
    double fMTSetupCpuTime;
-   /// Number of uncompressed bytes read in total from TTree branches.
+   /// Number of uncompressed bytes read in total from TTree branches or RNTuple Fields.
    ULong64_t fUncompressedBytesRead;
    /// Number of compressed bytes read in total from the TFiles.
    ULong64_t fCompressedBytesRead;
@@ -64,28 +64,7 @@ struct ReadSpeedRegex {
    bool operator<(const ReadSpeedRegex &other) const { return text < other.text; }
 };
 
-std::vector<std::string> GetMatchingBranchNames(const std::string &fileName, const std::string &treeName,
-                                                const std::vector<ReadSpeedRegex> &regexes);
-
-// Read branches listed in branchNames in tree treeName in file fileName, return number of uncompressed bytes read.
-ByteData ReadTree(TFile *file, const std::string &treeName, const std::vector<std::string> &branchNames,
-                  EntryRange range = {-1, -1});
-
-Result EvalThroughputST(const Data &d);
-
-// Return a vector of EntryRanges per file, i.e. a vector of vectors of EntryRanges with outer size equal to
-// d.fFileNames.
-std::vector<std::vector<EntryRange>> GetClusters(const Data &d);
-
-// Mimic the logic of TTreeProcessorMT::MakeClusters: merge entry ranges together such that we
-// run around TTreeProcessorMT::GetTasksPerWorkerHint tasks per worker thread.
-// TODO it would be better to expose TTreeProcessorMT's actual logic and call the exact same method from here
-std::vector<std::vector<EntryRange>>
-MergeClusters(std::vector<std::vector<EntryRange>> &&clusters, unsigned int maxTasksPerFile);
-
-Result EvalThroughputMT(const Data &d, unsigned nThreads);
-
-Result EvalThroughput(const Data &d, unsigned nThreads);
+ByteData SumBytes(const std::vector<ByteData> &bytesData);
 
 } // namespace ReadSpeed
 

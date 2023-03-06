@@ -36,7 +36,7 @@ endif()
 ROOT_EXECUTABLE(rootnb.exe nbmain.cxx LIBRARIES Core)
 
 #---ReadSpeed-------------------------------------------------------------------------------------
-ROOT_EXECUTABLE(rootreadspeed src/readspeed.cxx LIBRARIES RIO Tree TreePlayer ReadSpeed)
+ROOT_EXECUTABLE(rootreadspeed src/readspeed.cxx LIBRARIES RIO Tree TreePlayer ROOTNTuple ReadSpeed)
 
 #---CreateHaddCommandLineOptions------------------------------------------------------------------
 generateHeader(hadd

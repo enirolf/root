@@ -6,7 +6,7 @@
 #define TearDownTestSuite TearDownTestCase
 #endif
 
-#include "ReadSpeed.hxx"
+#include "ReadSpeedTTree.hxx"
 #include "ReadSpeedCLI.hxx"
 
 #ifdef R__USE_IMT
@@ -18,9 +18,10 @@
 #include "TTree.h"
 
 using namespace ReadSpeed;
+using namespace ReadSpeed::RSTTree;
 
-// Helper function to generate a .root file with some dummy data in it.
-void RequireFile(const std::string &fname, const std::vector<std::string> &branchNames = {"x"})
+// Helper function to generate a .root file containing a TTree with some dummy data in it.
+void RequireTree(const std::string &fname, const std::vector<std::string> &branchNames = {"x"})
 {
    if (gSystem->AccessPathName(fname.c_str()) == false) // then the file already exists: weird return value convention
       return;                                           // nothing to do
@@ -54,9 +55,9 @@ class ReadSpeedIntegration : public ::testing::Test {
 protected:
    static void SetUpTestSuite()
    {
-      RequireFile("readspeedinput1.root");
-      RequireFile("readspeedinput2.root");
-      RequireFile("readspeedinput3.root", {"x", "x_branch", "y_brunch", "mismatched"});
+      RequireTree("readspeedinput1.root");
+      RequireTree("readspeedinput2.root");
+      RequireTree("readspeedinput3.root", {"x", "x_branch", "y_brunch", "mismatched"});
    }
 
    static void TearDownTestSuite()
@@ -162,7 +163,7 @@ TEST(ReadSpeedCLI, CheckTrees)
    const auto allArgs = ConcatVectors(baseArgs, inTrees);
 
    const auto parsedArgs = ParseArgs(allArgs);
-   const auto outTrees = parsedArgs.fData.fTreeNames;
+   const auto outTrees = parsedArgs.fData.fTreeOrNTupleNames;
 
    EXPECT_EQ(outTrees.size(), inTrees.size()) << "Number of parsed trees does not match number of provided trees.";
    EXPECT_EQ(outTrees, inTrees) << "List of parsed trees does not match list of provided trees.";
@@ -178,7 +179,7 @@ TEST(ReadSpeedCLI, CheckBranches)
    const auto allArgs = ConcatVectors(baseArgs, inBranches);
 
    const auto parsedArgs = ParseArgs(allArgs);
-   const auto outBranches = parsedArgs.fData.fBranchNames;
+   const auto outBranches = parsedArgs.fData.fBranchOrFieldNames;
 
    EXPECT_EQ(outBranches.size(), inBranches.size())
       << "Number of parsed trees does not match number of provided trees.";
@@ -251,7 +252,7 @@ TEST(ReadSpeedCLI, AllBranches)
    EXPECT_TRUE(parsedArgs.fShouldRun) << "Program not running when given valid arguments";
    EXPECT_TRUE(parsedArgs.fData.fUseRegex) << "Program not using regex when it should";
    EXPECT_TRUE(parsedArgs.fAllBranches) << "Program not checking for all branches when it should";
-   EXPECT_EQ(parsedArgs.fData.fBranchNames, allBranches) << "All branch regex not correct";
+   EXPECT_EQ(parsedArgs.fData.fBranchOrFieldNames, allBranches) << "All branch regex not correct";
 }
 
 TEST(ReadSpeedCLI, MultipleThreads)

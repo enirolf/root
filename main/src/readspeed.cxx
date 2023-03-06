@@ -9,7 +9,8 @@
  *************************************************************************/
 
 #include "ReadSpeedCLI.hxx"
-#include "ReadSpeed.hxx"
+#include "ReadSpeedTTree.hxx"
+#include "ReadSpeedRNTuple.hxx"
 
 using namespace ReadSpeed;
 
@@ -20,7 +21,11 @@ int main(int argc, char **argv)
    if (!args.fShouldRun)
       return 1; // ParseArgs has printed the --help, has run the --test or has encountered an issue and logged about it
 
-   PrintThroughput(EvalThroughput(args.fData, args.fNThreads));
+   if (args.fEvalNTuple) {
+      PrintThroughput(RSRNTuple::EvalThroughput(args.fData, args.fNThreads));
+   }
+
+   PrintThroughput(RSTTree::EvalThroughput(args.fData, args.fNThreads));
 
    return 0;
 }

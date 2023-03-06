@@ -26,43 +26,48 @@ const auto usageText = "Usage:\n"
                        "[bregex2 ...])\n"
                        "               [--threads nthreads]\n"
                        "               [--tasks-per-worker ntasks]\n"
+                       " rootreadspeed --files fname1 [fname2 ...]\n"
+                       "               --ntupes nname1 [nname2 ...]\n"
+                       "               (--all-fields | --fields fname1 [fname2 ...] | --fields-regex fregex1 "
+                       "[fregex2 ...])\n"
+                       "               [--threads nthreads]\n"
+                       "               [--tasks-per-worker ntasks]\n"
                        " rootreadspeed (--help|-h)\n"
                        " \n"
                        " Use -h for usage help, --help for detailed information.\n";
 
-const auto argUsageText =
-   "Arguments:\n"
-   " Specifying files and trees:\n"
-   "   --files fname1 [fname2...]\n"
-   "    The list of root files to read from.\n"
-   "\n"
-   "   --trees tname1 [tname2...]\n"
-   "    The list of trees to read from the files. If only one tree is provided then it will"
-   "    be used for all files. If multiple trees are specified, each tree is read from the"
-   "    respective file."
-   "\n"
-   "\n"
-   " Specifying branches:\n"
-   "  Branches can be specified using one of the following flags. Currently only one can be used"
-   "  at a time.\n"
-   "   --all-branches\n"
-   "    Reads every branch from the specified files and trees."
-   "\n"
-   "   --branches bname1 [bname2...]\n"
-   "    Reads the branches with matching names. Will error if any of the branches are not found."
-   "\n"
-   "   --branches-regex bregex1 [bregex2 ...]\n"
-   "    Reads any branches with a name matching the provided regex. Will error if any provided"
-   "    regex does not match at least one branch."
-   "\n"
-   "\n"
-   " Meta arguments:\n"
-   "   --threads nthreads\n"
-   "    The number of threads to use for file reading. Will automatically cap to the number of"
-   "    available threads on the machine."
-   "\n"
-   "   --tasks-per-worker ntasks\n"
-   "    The number of tasks to generate for each worker thread when using multithreading.";
+const auto argUsageText = "Arguments:\n"
+                          " Specifying files and trees:\n"
+                          "   --files fname1 [fname2...]\n"
+                          "    The list of root files to read from.\n"
+                          "\n"
+                          "   --trees tname1 [tname2...]\n"
+                          "    The list of trees to read from the files. If only one tree is provided then it will"
+                          "    be used for all files. If multiple trees are specified, each tree is read from the"
+                          "    respective file."
+                          "\n"
+                          "\n"
+                          " Specifying branches:\n"
+                          "  Branches can be specified using one of the following flags. Currently only one can be used"
+                          "  at a time.\n"
+                          "   --all-branches\n"
+                          "    Reads every branch from the specified files and trees."
+                          "\n"
+                          "   --branches bname1 [bname2...]\n"
+                          "    Reads the branches with matching names. Will error if any of the branches are not found."
+                          "\n"
+                          "   --branches-regex bregex1 [bregex2 ...]\n"
+                          "    Reads any branches with a name matching the provided regex. Will error if any provided"
+                          "    regex does not match at least one branch."
+                          "\n"
+                          "\n"
+                          " Meta arguments:\n"
+                          "   --threads nthreads\n"
+                          "    The number of threads to use for file reading. Will automatically cap to the number of"
+                          "    available threads on the machine."
+                          "\n"
+                          "   --tasks-per-worker ntasks\n"
+                          "    The number of tasks to generate for each worker thread when using multithreading.";
 
 const auto fullUsageText =
    "Description:\n"
@@ -139,11 +144,16 @@ const auto fullUsageText =
    "\n"
    " Known overhead of TTreeReader, RDataFrame:\n"
    " `rootreadspeed` is designed to read all data present in the specified branches, trees and files at the highest "
-   " possible speed. When the application bottleneck is not in the computations performed by analysis logic, higher-level "
-   " interfaces built on top of TTree such as TTreeReader and RDataFrame are known to add a significant runtime overhead "
-   " with respect to the runtimes reported by `rootreadspeed` (up to a factor 2). In realistic analysis applications it has "
-   " been observed that a large part of that overhead is compensated by the ability of TTreeReader and RDataFrame to read "
-   " branch values selectively, based on event cuts, and this overhead will be reduced significantly when using RDataFrame "
+   " possible speed. When the application bottleneck is not in the computations performed by analysis logic, "
+   "higher-level "
+   " interfaces built on top of TTree such as TTreeReader and RDataFrame are known to add a significant runtime "
+   "overhead "
+   " with respect to the runtimes reported by `rootreadspeed` (up to a factor 2). In realistic analysis applications "
+   "it has "
+   " been observed that a large part of that overhead is compensated by the ability of TTreeReader and RDataFrame to "
+   "read "
+   " branch values selectively, based on event cuts, and this overhead will be reduced significantly when using "
+   "RDataFrame "
    " in conjunction with RNTuple.";
 
 void ReadSpeed::PrintThroughput(const Result &r)
@@ -204,42 +214,69 @@ Args ReadSpeed::ParseArgs(const std::vector<std::string> &args)
 
    Data d;
    unsigned int nThreads = 0;
+   bool evalNTuple = false;
 
-   enum class EArgState { kNone, kTrees, kFiles, kBranches, kThreads, kTasksPerWorkerHint } argState = EArgState::kNone;
-   enum class EBranchState { kNone, kRegular, kRegex, kAll } branchState = EBranchState::kNone;
+   enum class EArgState {
+      kNone,
+      kTreesOrNTuples,
+      kNTuples,
+      kFiles,
+      kBranchesOrFields,
+      kFields,
+      kThreads,
+      kTasksPerWorkerHint
+   } argState = EArgState::kNone;
+   enum class EBranchOrFieldState { kNone, kRegular, kRegex, kAll } branchOrFieldState = EBranchOrFieldState::kNone;
    const auto branchOptionsErrMsg =
       "Options --all-branches, --branches, and --branches-regex are mutually exclusive. You can use only one.\n";
+   const auto fieldOptionsErrMsg =
+      "Options --all-fields, --fields, and --fields-regex are mutually exclusive. You can use only one.\n";
 
    for (size_t i = 1; i < args.size(); ++i) {
       const auto &arg = args[i];
 
       if (arg == "--trees") {
-         argState = EArgState::kTrees;
+         argState = EArgState::kTreesOrNTuples;
+      } else if (arg == "--ntuples") {
+         evalNTuple = true;
+         argState = EArgState::kTreesOrNTuples;
       } else if (arg == "--files") {
          argState = EArgState::kFiles;
-      } else if (arg == "--all-branches") {
+      } else if (arg == "--all-branches" || arg == "--all-fields") {
          argState = EArgState::kNone;
-         if (branchState != EBranchState::kNone && branchState != EBranchState::kAll) {
-            std::cerr << branchOptionsErrMsg;
+         if (branchOrFieldState != EBranchOrFieldState::kNone && branchOrFieldState != EBranchOrFieldState::kAll) {
+            if (evalNTuple) {
+               std::cerr << fieldOptionsErrMsg;
+            } else {
+               std::cerr << branchOptionsErrMsg;
+            }
             return {};
          }
-         branchState = EBranchState::kAll;
+         branchOrFieldState = EBranchOrFieldState::kAll;
          d.fUseRegex = true;
-         d.fBranchNames = {".*"};
-      } else if (arg == "--branches") {
-         argState = EArgState::kBranches;
-         if (branchState != EBranchState::kNone && branchState != EBranchState::kRegular) {
-            std::cerr << branchOptionsErrMsg;
+         d.fBranchOrFieldNames = {".*"};
+      } else if ((arg == "--branches") | (arg == "--fields")) {
+         argState = EArgState::kBranchesOrFields;
+         if (branchOrFieldState != EBranchOrFieldState::kNone && branchOrFieldState != EBranchOrFieldState::kRegular) {
+            if (evalNTuple) {
+               std::cerr << fieldOptionsErrMsg;
+            } else {
+               std::cerr << branchOptionsErrMsg;
+            }
             return {};
          }
-         branchState = EBranchState::kRegular;
-      } else if (arg == "--branches-regex") {
-         argState = EArgState::kBranches;
-         if (branchState != EBranchState::kNone && branchState != EBranchState::kRegex) {
-            std::cerr << branchOptionsErrMsg;
+         branchOrFieldState = EBranchOrFieldState::kRegular;
+      } else if ((arg == "--branches-regex") | (arg == "--fields-regex")) {
+         argState = EArgState::kBranchesOrFields;
+         if (branchOrFieldState != EBranchOrFieldState::kNone && branchOrFieldState != EBranchOrFieldState::kRegex) {
+            if (evalNTuple) {
+               std::cerr << fieldOptionsErrMsg;
+            } else {
+               std::cerr << branchOptionsErrMsg;
+            }
             return {};
          }
-         branchState = EBranchState::kRegex;
+         branchOrFieldState = EBranchOrFieldState::kRegex;
          d.fUseRegex = true;
       } else if (arg == "--threads") {
          argState = EArgState::kThreads;
@@ -250,9 +287,9 @@ Args ReadSpeed::ParseArgs(const std::vector<std::string> &args)
          return {};
       } else {
          switch (argState) {
-         case EArgState::kTrees: d.fTreeNames.emplace_back(arg); break;
+         case EArgState::kTreesOrNTuples: d.fTreeOrNTupleNames.emplace_back(arg); break;
          case EArgState::kFiles: d.fFileNames.emplace_back(arg); break;
-         case EArgState::kBranches: d.fBranchNames.emplace_back(arg); break;
+         case EArgState::kBranchesOrFields: d.fBranchOrFieldNames.emplace_back(arg); break;
          case EArgState::kThreads:
             nThreads = std::stoi(arg);
             argState = EArgState::kNone;
@@ -271,7 +308,8 @@ Args ReadSpeed::ParseArgs(const std::vector<std::string> &args)
       }
    }
 
-   return Args{std::move(d), nThreads, branchState == EBranchState::kAll, /*fShouldRun=*/true};
+   return Args{std::move(d), nThreads, evalNTuple, branchOrFieldState == EBranchOrFieldState::kAll,
+               /*fShouldRun=*/true};
 }
 
 Args ReadSpeed::ParseArgs(int argc, char **argv)
