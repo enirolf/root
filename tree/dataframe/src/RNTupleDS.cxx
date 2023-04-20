@@ -66,7 +66,9 @@ protected:
 public:
    static std::string TypeName() { return "std::size_t"; }
    RRDFCardinalityField()
-      : ROOT::Experimental::Detail::RFieldBase("", TypeName(), ENTupleStructure::kLeaf, false /* isSimple */) {}
+      : ROOT::Experimental::Detail::RFieldBase("", TypeName(), ENTupleStructure::kLeaf, false /* isSimple */)
+   {
+   }
    RRDFCardinalityField(RRDFCardinalityField &&other) = default;
    RRDFCardinalityField &operator=(RRDFCardinalityField &&other) = default;
    ~RRDFCardinalityField() = default;
@@ -151,7 +153,10 @@ public:
 
 } // namespace Internal
 
-RNTupleDS::~RNTupleDS() = default;
+RNTupleDS::~RNTupleDS()
+{
+   fMetrics.Print(std::cout);
+}
 
 void RNTupleDS::AddField(const RNTupleDescriptor &desc, std::string_view colName, DescriptorId_t fieldId,
                          std::vector<DescriptorId_t> skeinIDs)
@@ -202,8 +207,8 @@ void RNTupleDS::AddField(const RNTupleDescriptor &desc, std::string_view colName
          cardinalityField->SetOnDiskId(fieldId);
          fColumnNames.emplace_back("R_rdf_sizeof_" + std::string(colName));
          fColumnTypes.emplace_back(cardinalityField->GetType());
-         auto cardColReader = std::make_unique<ROOT::Experimental::Internal::RNTupleColumnReader>(
-            std::move(cardinalityField));
+         auto cardColReader =
+            std::make_unique<ROOT::Experimental::Internal::RNTupleColumnReader>(std::move(cardinalityField));
          fColumnReaderPrototypes.emplace_back(std::move(cardColReader));
 
          for (const auto &f : desc.GetFieldIterable(fieldDesc.GetId())) {
@@ -255,8 +260,8 @@ void RNTupleDS::AddField(const RNTupleDescriptor &desc, std::string_view colName
    if (cardinalityField) {
       fColumnNames.emplace_back("R_rdf_sizeof_" + std::string(colName));
       fColumnTypes.emplace_back(cardinalityField->GetType());
-      auto cardColReader = std::make_unique<ROOT::Experimental::Internal::RNTupleColumnReader>(
-         std::move(cardinalityField));
+      auto cardColReader =
+         std::make_unique<ROOT::Experimental::Internal::RNTupleColumnReader>(std::move(cardinalityField));
       fColumnReaderPrototypes.emplace_back(std::move(cardColReader));
    }
 
@@ -267,9 +272,11 @@ void RNTupleDS::AddField(const RNTupleDescriptor &desc, std::string_view colName
    fColumnReaderPrototypes.emplace_back(std::move(valColReader));
 }
 
-RNTupleDS::RNTupleDS(std::unique_ptr<Detail::RPageSource> pageSource)
+RNTupleDS::RNTupleDS(std::unique_ptr<Detail::RPageSource> pageSource) : fMetrics("RDF")
 {
    pageSource->Attach();
+   fMetrics.ObserveMetrics(pageSource->GetMetrics());
+   fMetrics.Enable();
    auto descriptorGuard = pageSource->GetSharedDescriptorGuard();
    fSources.emplace_back(std::move(pageSource));
 
@@ -355,6 +362,7 @@ void RNTupleDS::SetNSlots(unsigned int nSlots)
 } // namespace ROOT
 
 ROOT::RDataFrame ROOT::RDF::Experimental::FromRNTuple(std::string_view ntupleName, std::string_view fileName)
+
 {
    auto pageSource = ROOT::Experimental::Detail::RPageSource::Create(ntupleName, fileName);
    ROOT::RDataFrame rdf(std::make_unique<ROOT::Experimental::RNTupleDS>(std::move(pageSource)));

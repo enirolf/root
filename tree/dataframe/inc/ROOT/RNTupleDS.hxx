@@ -20,6 +20,7 @@
 #include <ROOT/RDataFrame.hxx>
 #include <ROOT/RDataSource.hxx>
 #include <ROOT/RNTupleUtil.hxx>
+#include <ROOT/RNTupleMetrics.hxx>
 #include <string_view>
 
 #include <cstdint>
@@ -55,6 +56,8 @@ class RNTupleDS final : public ROOT::RDF::RDataSource {
    std::vector<std::string> fColumnTypes;
    std::vector<size_t> fActiveColumns;
 
+   ROOT::Experimental::Detail::RNTupleMetrics fMetrics;
+
    unsigned fNSlots = 0;
    bool fHasSeenAllRanges = false;
 
@@ -66,9 +69,7 @@ class RNTupleDS final : public ROOT::RDF::RDataSource {
    ///    float eta;
    /// };
    /// AddField will recurse into Jet.pt and Jet.eta and provide the two inner fields as std::vector<float> each.
-   void AddField(const RNTupleDescriptor &desc,
-                 std::string_view colName,
-                 DescriptorId_t fieldId,
+   void AddField(const RNTupleDescriptor &desc, std::string_view colName, DescriptorId_t fieldId,
                  std::vector<DescriptorId_t> skeinIDs);
 
 public:
@@ -93,7 +94,7 @@ protected:
    Record_t GetColumnReadersImpl(std::string_view name, const std::type_info &) final;
 };
 
-} // ns Experimental
+} // namespace Experimental
 
 namespace RDF {
 namespace Experimental {
@@ -102,6 +103,6 @@ RDataFrame FromRNTuple(ROOT::Experimental::RNTuple *ntuple);
 } // namespace Experimental
 } // namespace RDF
 
-} // ns ROOT
+} // namespace ROOT
 
 #endif
