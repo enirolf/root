@@ -20,6 +20,7 @@
 #include <ROOT/RDataFrame.hxx>
 #include <ROOT/RDataSource.hxx>
 #include <ROOT/RNTupleUtil.hxx>
+#include <ROOT/RNTupleMetrics.hxx>
 #include <string_view>
 
 #include <cstdint>
@@ -92,6 +93,8 @@ class RNTupleDS final : public ROOT::RDF::RDataSource {
    /// the fCurrentRanges vectors.  This is necessary because the returned ranges get distributed arbitrarily
    /// onto slots.  In the InitSlot method, the column readers use this map to find the correct range to connect to.
    std::unordered_map<ULong64_t, std::size_t> fFirstEntry2RangeIdx;
+
+   Detail::RNTupleMetrics fMetrics;
 
    /// \brief Holds useful information about fields added to the RNTupleDS
    struct RFieldInfo {

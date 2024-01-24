@@ -226,7 +226,10 @@ public:
 
 } // namespace Internal
 
-RNTupleDS::~RNTupleDS() = default;
+RNTupleDS::~RNTupleDS()
+{
+   fMetrics.Print(std::cout);
+}
 
 void RNTupleDS::AddField(const RNTupleDescriptor &desc, std::string_view colName, DescriptorId_t fieldId,
                          std::vector<RNTupleDS::RFieldInfo> fieldInfos)
@@ -372,10 +375,14 @@ void RNTupleDS::AddField(const RNTupleDescriptor &desc, std::string_view colName
    fProtoFields.emplace_back(std::move(valueField));
 }
 
-RNTupleDS::RNTupleDS(std::unique_ptr<Detail::RPageSource> pageSource) : fPrincipalSource(std::move(pageSource))
+RNTupleDS::RNTupleDS(std::unique_ptr<Detail::RPageSource> pageSource)
+   : fPrincipalSource(std::move(pageSource)), fMetrics("RDF")
 {
    fPrincipalSource->Attach();
    fPrincipalDescriptor = fPrincipalSource->GetSharedDescriptorGuard()->Clone();
+
+   fMetrics.ObserveMetrics(fPrincipalSource->GetMetrics());
+   fMetrics.Enable();
 
    AddField(*fPrincipalDescriptor, "", fPrincipalDescriptor->GetFieldZeroId(),
             std::vector<ROOT::Experimental::RNTupleDS::RFieldInfo>());
