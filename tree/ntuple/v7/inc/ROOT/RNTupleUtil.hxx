@@ -134,6 +134,7 @@ public:
 struct RNTupleLocatorObject64 {
    std::uint64_t fLocation = 0;
    bool operator==(const RNTupleLocatorObject64 &other) const { return fLocation == other.fLocation; }
+   bool operator<(const RNTupleLocatorObject64 &other) const { return fLocation < other.fLocation; }
 };
 
 /// Generic information about the physical location of data. Values depend on the concrete storage type.  E.g.,
