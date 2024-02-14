@@ -199,7 +199,8 @@ public:
    TObject          *FindObject(const TObject *obj) const override;
    TObject          *FindObjectAny(const char *name) const override;
    TObject          *FindObjectAnyFile(const char *name) const override;
-   TObject          *FindSpecialObject(const char *name, void *&where);
+   void *FindSpecialObject(const char *name, void *&where);
+   // TObject          *FindSpecialObject(const char *name, void *&where);
    const char       *FindObjectClassName(const char *name) const;
    const char       *FindObjectPathName(const TObject *obj) const;
    TClass           *FindSTLClass(const char *name, Bool_t load, Bool_t silent = kFALSE) const;

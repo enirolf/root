@@ -7693,7 +7693,7 @@ TObject* TCling::GetObjectAddress(const char *Name, void *&LookupCtx)
    Sema::ContextAndScopeRAII pushedDCAndS(SemaR, C.getTranslationUnitDecl(),
                                           SemaR.TUScope);
 
-   TObject* specObj = gROOT->FindSpecialObject(Name, LookupCtx);
+   TObject *specObj = static_cast<TObject *>(gROOT->FindSpecialObject(Name, LookupCtx));
    if (specObj) {
       if (!LookupCtx) {
          Error("GetObjectAddress", "Got a special object without LookupCtx!");

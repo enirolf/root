@@ -1336,9 +1336,9 @@ TObject *TROOT::FindObject(const char *name) const
 ///     - Current Directory in memory
 ///     - Current Directory on file
 
-TObject *TROOT::FindSpecialObject(const char *name, void *&where)
+void *TROOT::FindSpecialObject(const char *name, void *&where)
 {
-   TObject *temp = nullptr;
+   void *temp = nullptr;
    where = nullptr;
 
    if (!temp) {
@@ -1386,7 +1386,8 @@ TObject *TROOT::FindSpecialObject(const char *name, void *&where)
       }
    }
    if (!temp) return nullptr;
-   if (!ROOT::Detail::HasBeenDeleted(temp)) return temp;
+   if (!ROOT::Detail::HasBeenDeleted(static_cast<TObject *>(temp)))
+      return temp;
    return nullptr;
 }
 
