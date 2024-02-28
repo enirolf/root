@@ -15,17 +15,21 @@ endif()
 
 ROOT_STANDARD_LIBRARY_PACKAGE(ROOTNTupleUtil
 HEADERS
+  ROOT/RNTupleStorageDrawer.hxx
   ROOT/RNTupleImporter.hxx
   ROOT/RNTupleInspector.hxx
 SOURCES
+  v7/src/RNTupleStorageDrawer.cxx
   v7/src/RNTupleImporter.cxx
   v7/src/RNTupleInspector.cxx
 LINKDEF
   LinkDef.h
 DEPENDENCIES
+  Gpad
+  Graf
+  Hist
   ROOTNTuple
   Tree
-  Hist
 )
 
 if(MSVC)

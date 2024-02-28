@@ -18,6 +18,7 @@
 #include <ROOT/RPageStorageFile.hxx>
 #include <ROOT/RNTupleDescriptor.hxx>
 #include <ROOT/RNTupleInspector.hxx>
+#include <ROOT/RNTupleStorageDrawer.hxx>
 #include <ROOT/RError.hxx>
 
 #include <TFile.h>
@@ -168,6 +169,12 @@ std::string ROOT::Experimental::RNTupleInspector::GetCompressionSettingsAsString
 
    return RCompressionSetting::AlgorithmToString(static_cast<RCompressionSetting::EAlgorithm::EValues>(algorithm)) +
           " (level " + std::to_string(level) + ")";
+}
+
+void ROOT::Experimental::RNTupleInspector::DrawStorageLayout()
+{
+   // drawer(*this);
+   Internal::RNTupleStorageDrawer::Draw(*this);
 }
 
 //------------------------------------------------------------------------------

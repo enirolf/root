@@ -21,3 +21,4 @@ endif()
 
 ROOT_ADD_GTEST(ntuple_importer ntuple_importer.cxx LIBRARIES ROOTNTupleUtil CustomStructUtil)
 ROOT_ADD_GTEST(ntuple_inspector ntuple_inspector.cxx LIBRARIES ROOTNTupleUtil)
+# ROOT_ADD_GTEST(ntuple_storage_drawer ntuple_storage_drawer.cxx LIBRARIES ROOTNTupleUtil)

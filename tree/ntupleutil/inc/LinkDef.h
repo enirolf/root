@@ -14,4 +14,15 @@
 #pragma link off all classes;
 #pragma link off all functions;
 
+#pragma link C++ nestedtypedefs;
+#pragma link C++ nestedclasses;
+
+#pragma link C++ class ROOT::Experimental::Internal::RNTupleStorageDrawer-;
+#pragma link C++ class ROOT::Experimental::Internal::RNTupleStorageDrawer::RMetaDataBox+;
+#pragma link C++ class ROOT::Experimental::Internal::RNTupleStorageDrawer::RPageBox+;
+
+// #pragma link C++ class ROOT::Experimental::RNTupleLocator + ;
+// #pragma link C++ class ROOT::Experimental::RNTupleLocatorObject64 + ;
+// #pragma link C++ class std::variant<std::uint64_t, std::string, ROOT::Experimental::RNTupleLocatorObject64> + ;
+
 #endif

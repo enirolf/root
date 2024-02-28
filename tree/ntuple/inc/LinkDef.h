@@ -16,4 +16,7 @@
 
 #pragma link C++ class ROOT::Experimental::RNTuple - ;
 
+// #pragma link C++ class ROOT::Experimental::RNTupleLocator + ;
+// #pragma link C++ class std::variant<std::uint64_t, std::string, ROOT::Experimental::RNTupleLocatorObject64> + ;
+
 #endif

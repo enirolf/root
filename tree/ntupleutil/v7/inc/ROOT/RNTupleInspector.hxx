@@ -245,6 +245,9 @@ public:
    /// that were used. The compression factor is calculated as \f$size_{uncompressed} / size_{compressed}\f$.
    float GetCompressionFactor() const { return (float)fUncompressedSize / (float)fCompressedSize; }
 
+   /// TODO Docs
+   void DrawStorageLayout();
+
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Get storage information for a given column.
    ///
