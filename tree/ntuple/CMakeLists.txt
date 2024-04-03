@@ -63,6 +63,7 @@ SOURCES
   v7/src/RNTupleDescriptor.cxx
   v7/src/RNTupleDescriptorFmt.cxx
   v7/src/RNTupleFillContext.cxx
+  v7/src/RNTupleIndex.cxx
   v7/src/RNTupleMerger.cxx
   v7/src/RNTupleMetrics.cxx
   v7/src/RNTupleModel.cxx
