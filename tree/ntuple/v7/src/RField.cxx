@@ -1076,6 +1076,12 @@ void ROOT::Experimental::RFieldBase::AcceptVisitor(Detail::RFieldVisitor &visito
    visitor.VisitField(*this);
 }
 
+ROOT::Experimental::NTupleIndexValue_t ROOT::Experimental::RFieldBase::GetIndexRepresentation(void * /*from*/)
+{
+   R__ASSERT(false && "indexing is not supported for this field type");
+   return 0;
+}
+
 //-----------------------------------------------------------------------------
 
 std::unique_ptr<ROOT::Experimental::RFieldBase>

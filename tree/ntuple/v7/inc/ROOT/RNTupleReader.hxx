@@ -29,9 +29,6 @@
 #include <ROOT/RSpan.hxx>
 
 #include <TROOT.h>
-#ifdef R__USE_IMT
-#include <ROOT/TThreadExecutor.hxx>
-#endif
 
 #include <iostream>
 #include <iterator>
@@ -349,62 +346,9 @@ public:
    /// \param[in] fieldName The name of the field for which to create the index
    /// \return A pointer to the newly created index
    ///
-   /// \note Building the index can be sped up significantly by enabling implicit multithreading!
-   template <typename T>
-   std::unique_ptr<Internal::RNTupleIndex<T>> CreateIndex(std::string_view fieldName)
-   {
-      using Internal::RNTupleIndex;
-
-      auto makeIndex = [&](std::pair<std::uint64_t, std::uint64_t> range) -> RNTupleIndex<T> {
-         auto partialIndex = RNTupleIndex<T>(fieldName);
-         auto reader = this->Clone();
-         auto entry = reader->GetModel().CreateEntry();
-
-         for (std::uint64_t i = range.first; i < range.second; ++i) {
-            reader->LoadEntry(i, *entry);
-            auto ptr = entry->GetPtr<T>(fieldName);
-            partialIndex.Add(*ptr, i);
-         }
-
-         return partialIndex;
-      };
-
-#ifdef R__USE_IMT
-      if (ROOT::IsImplicitMTEnabled()) {
-         std::vector<std::pair<std::uint64_t, std::uint64_t>> ranges;
-
-         {
-            auto descriptorGuard = fSource->GetSharedDescriptorGuard();
-            const std::size_t nClusters = descriptorGuard->GetNClusters();
-            std::size_t globalClusterId = 0;
-            std::size_t rangeStart = 0;
-
-            for (std::size_t c = 0; c < nClusters; ++c) {
-               const auto &clusterDesc = descriptorGuard->GetClusterDescriptor(globalClusterId++);
-               ranges.emplace_back(rangeStart, rangeStart + clusterDesc.GetNEntries());
-               rangeStart += clusterDesc.GetNEntries();
-            }
-         }
-
-         auto reducePartialIndices = [fieldName](const std::vector<RNTupleIndex<T>> indices) -> RNTupleIndex<T> {
-            return std::accumulate(indices.begin(), indices.end(), RNTupleIndex<T>(fieldName),
-                                   RNTupleIndex<T>::Concatenate);
-         };
-
-         auto index = ROOT::TThreadExecutor{}.MapReduce(makeIndex, ranges, reducePartialIndices);
-
-         return std::make_unique<RNTupleIndex<T>>(index);
-      }
-#endif
-
-      auto index = makeIndex(std::pair<std::uint64_t, std::uint64_t>{0, GetNEntries()});
-      return std::unique_ptr<RNTupleIndex<T>>(new RNTupleIndex<T>(index));
-   }
-
-   // template <typename T>
-   // void Join(ROpenSpec ntuple, std::string_view fieldName) {
-
-   // }
+   /// \note Building the index can be sped up significantly by enabling implicit multithreading
+   /// (`ROOT::EnableImplicitMT()`).
+   std::unique_ptr<Internal::RNTupleIndex> CreateIndex(std::string_view fieldName);
 }; // class RNTupleReader
 
 } // namespace Experimental

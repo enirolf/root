@@ -105,6 +105,8 @@ constexpr ColumnId_t kInvalidColumnId = -1;
 using DescriptorId_t = std::uint64_t;
 constexpr DescriptorId_t kInvalidDescriptorId = std::uint64_t(-1);
 
+using NTupleIndexValue_t = std::size_t;
+
 /// Addresses a column element or field item relative to a particular cluster, instead of a global NTupleSize_t index
 class RClusterIndex {
 private:

@@ -24,6 +24,9 @@
 #include <ROOT/RPageStorageFile.hxx>
 
 #include <TROOT.h>
+#ifdef R__USE_IMT
+#include <ROOT/TThreadExecutor.hxx>
+#endif
 
 void ROOT::Experimental::RNTupleReader::ConnectModel(RNTupleModel &model)
 {
@@ -237,4 +240,58 @@ ROOT::Experimental::DescriptorId_t ROOT::Experimental::RNTupleReader::RetrieveFi
                                fSource->GetSharedDescriptorGuard()->GetName() + "'"));
    }
    return fieldId;
+}
+
+std::unique_ptr<ROOT::Experimental::Internal::RNTupleIndex>
+ROOT::Experimental::RNTupleReader::CreateIndex(std::string_view fieldName)
+{
+   using Internal::RNTupleIndex;
+
+   const RFieldBase &field = GetModel().GetField(fieldName);
+
+   auto fnMakeIndex = [&](std::pair<std::uint64_t, std::uint64_t> range) -> RNTupleIndex {
+      RNTupleIndex partialIndex(field.Clone(fieldName));
+      auto reader = this->Clone();
+      auto entry = reader->GetModel().CreateEntry();
+      auto token = entry->GetToken(fieldName);
+
+      for (std::uint64_t i = range.first; i < range.second; ++i) {
+         reader->LoadEntry(i, *entry);
+         auto ptr = entry->GetPtr<void>(token);
+         partialIndex.Add(ptr.get(), i);
+      }
+
+      return partialIndex;
+   };
+
+#ifdef R__USE_IMT
+   if (ROOT::IsImplicitMTEnabled()) {
+      std::vector<std::pair<std::uint64_t, std::uint64_t>> ranges;
+
+      {
+         auto descriptorGuard = fSource->GetSharedDescriptorGuard();
+         const std::size_t nClusters = descriptorGuard->GetNClusters();
+         std::size_t globalClusterId = 0;
+         std::size_t rangeStart = 0;
+
+         for (std::size_t c = 0; c < nClusters; ++c) {
+            const auto &clusterDesc = descriptorGuard->GetClusterDescriptor(globalClusterId++);
+            ranges.emplace_back(rangeStart, rangeStart + clusterDesc.GetNEntries());
+            rangeStart += clusterDesc.GetNEntries();
+         }
+      }
+
+      auto reducePartialIndices = [&field, &fieldName](const std::vector<RNTupleIndex> indices) -> RNTupleIndex {
+         return std::accumulate(indices.begin(), indices.end(), RNTupleIndex(field.Clone(fieldName)),
+                                RNTupleIndex::Concatenate);
+      };
+
+      auto index = ROOT::TThreadExecutor{}.MapReduce(fnMakeIndex, ranges, reducePartialIndices);
+
+      return std::make_unique<RNTupleIndex>(index);
+   }
+#endif
+
+   auto index = fnMakeIndex(std::pair<std::uint64_t, std::uint64_t>{0, GetNEntries()});
+   return std::unique_ptr<RNTupleIndex>(new RNTupleIndex(index));
 }

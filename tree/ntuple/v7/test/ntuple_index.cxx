@@ -16,23 +16,21 @@ TEST(RNTupleIndex, FromReader)
 
       auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard.GetPath());
 
-      *fld = 0;
-      ntuple->Fill();
       for (int i = 0; i < 10; ++i) {
-         *fld = i;
+         *fld = i * 2;
          ntuple->Fill();
       }
    }
 
    auto ntuple = RNTupleReader::Open("ntuple", fileGuard.GetPath());
-   auto fld = ntuple->GetView<std::uint64_t>("fld");
-   auto index = ntuple->CreateIndex<std::uint64_t>("fld");
+   auto index = ntuple->CreateIndex("fld");
 
-   EXPECT_EQ(index->GetEntry(0), 0);
-   EXPECT_EQ(index->GetEntry(0, 1), 1);
-   // The first two entries are 0, so start the loop from the third.
-   for (unsigned i = 2; i < ntuple->GetNEntries(); ++i) {
-      EXPECT_EQ(index->GetEntry(fld(i)), i);
+   auto fld = ntuple->GetView<std::uint64_t>("fld");
+
+   for (unsigned i = 0; i < ntuple->GetNEntries(); ++i) {
+      auto fldValue = fld(i);
+      EXPECT_EQ(fldValue, i * 2);
+      EXPECT_EQ(index->GetEntryIndex(&fldValue), i);
    }
 }
 
@@ -48,10 +46,8 @@ TEST(RNTupleIndex, FromReaderMT)
       opts.SetApproxZippedClusterSize(512);
       auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard.GetPath(), opts);
 
-      *fld = 0;
-      ntuple->Fill();
-      for (int i = 0; i < 1e4; ++i) {
-         *fld = i;
+      for (int i = 0; i < 10; ++i) {
+         *fld = i * 2;
          ntuple->Fill();
       }
    }
@@ -59,14 +55,14 @@ TEST(RNTupleIndex, FromReaderMT)
    IMTRaii _;
 
    auto ntuple = RNTupleReader::Open("ntuple", fileGuard.GetPath());
-   auto fld = ntuple->GetView<std::uint64_t>("fld");
-   auto index = ntuple->CreateIndex<std::uint64_t>("fld");
+   auto index = ntuple->CreateIndex("fld");
 
-   EXPECT_EQ(index->GetEntry(0), 0);
-   EXPECT_EQ(index->GetEntry(0, 1), 1);
-   // The first two entries are 0, so start the loop from the third.
-   for (unsigned i = 2; i < ntuple->GetNEntries(); ++i) {
-      EXPECT_EQ(index->GetEntry(fld(i)), i);
+   auto fld = ntuple->GetView<std::uint64_t>("fld");
+
+   for (unsigned i = 0; i < ntuple->GetNEntries(); ++i) {
+      auto fldValue = fld(i);
+      EXPECT_EQ(fldValue, i * 2);
+      EXPECT_EQ(index->GetEntryIndex(&fldValue), i);
    }
 }
 #endif
