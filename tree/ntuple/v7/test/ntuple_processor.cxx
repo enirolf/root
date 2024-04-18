@@ -1,11 +1,11 @@
 #include "ntuple_test.hxx"
 
+#include <ROOT/RNTupleHorizontalProcessor.hxx>
 #include <ROOT/RNTupleProcessor.hxx>
 
-using ROOT::Experimental::RNTupleModel;
+using ROOT::Experimental::RNTupleHorizontalProcessor;
 using ROOT::Experimental::RNTupleProcessor;
 using ROOT::Experimental::RNTupleSourceSpec;
-using ROOT::Experimental::RNTupleWriter;
 
 TEST(RNTupleProcessor, Basic)
 {
@@ -167,7 +167,7 @@ TEST(RNTupleProcessor, ChainUnalignedModels)
 
    std::vector<RNTupleSourceSpec> ntuples = {{"ntuple", fileGuard1.GetPath()}, {"ntuple", fileGuard2.GetPath()}};
 
-   auto proc = RNTupleProcessor(ntuples);
+   RNTupleProcessor proc(ntuples);
    auto entry = proc.begin();
    auto x = (*entry)->GetPtr<float>("x");
    auto y = (*entry)->GetPtr<char>("y");
@@ -181,3 +181,70 @@ TEST(RNTupleProcessor, ChainUnalignedModels)
       EXPECT_THAT(err.what(), testing::HasSubstr("field \"y\" not found in current RNTuple"));
    }
 }
+
+TEST(RNTupleHorizontalProcessor, Basic)
+{
+   FileRaii fileGuard1("test_ntuple_processor_simple_join1.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldI = model->MakeField<int>("i");
+      auto fldX = model->MakeField<float>("x");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple1", fileGuard1.GetPath());
+
+      for (*fldI = 0; *fldI < 5; ++(*fldI)) {
+         *fldX = static_cast<float>(*fldI);
+         ntuple->Fill();
+      }
+   }
+   FileRaii fileGuard2("test_ntuple_processor_simple_join2.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldY = model->MakeField<std::vector<float>>("y");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple2", fileGuard2.GetPath());
+
+      for (unsigned i = 0; i < 5; ++i) {
+         *fldY = {static_cast<float>(i * 0.2), 3.14, static_cast<float>(i * 1.3)};
+         ntuple->Fill();
+      }
+   }
+   FileRaii fileGuard3("test_ntuple_processor_simple_join3.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldZ = model->MakeField<std::uint64_t>("z");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple3", fileGuard3.GetPath());
+
+      for (unsigned i = 0; i < 5; ++i) {
+         *fldZ = static_cast<std::uint64_t>(i * 2);
+         ntuple->Fill();
+      }
+   }
+
+   try {
+      std::vector<RNTupleSourceSpec> ntuples = {{"ntuple1", fileGuard1.GetPath()}, {"ntuple1", fileGuard1.GetPath()}};
+      RNTupleHorizontalProcessor proc(ntuples);
+      FAIL() << "ntuples with the same name cannot be joined horizontally";
+   } catch (const RException &err) {
+      EXPECT_THAT(err.what(), testing::HasSubstr("horizontal joining of RNTuples with the same name is not allowed"));
+   }
+
+   std::vector<RNTupleSourceSpec> ntuples = {
+      {"ntuple1", fileGuard1.GetPath()}, {"ntuple2", fileGuard2.GetPath()}, {"ntuple3", fileGuard3.GetPath()}};
+   RNTupleHorizontalProcessor proc(ntuples);
+   auto &model = proc.GetModel();
+
+   EXPECT_EQ(model.GetField("x").GetFieldName(), "x");
+   EXPECT_EQ(model.GetField("ntuple2.y").GetFieldName(), "y");
+   EXPECT_EQ(model.GetField("ntuple3.z").GetFieldName(), "z");
+
+   std::shared_ptr<int> fldI;
+   for (auto entry = proc.begin(); entry != proc.end(); ++entry) {
+      fldI = (*entry).GetPtr<int>("i");
+      EXPECT_EQ(static_cast<float>(*fldI), *(*entry).GetPtr<float>("x"));
+      std::vector<float> yExpected = {static_cast<float>(*fldI * 0.2), 3.14, static_cast<float>(*fldI * 1.3)};
+      EXPECT_EQ(yExpected, *(*entry).GetPtr<std::vector<float>>("y"));
+      EXPECT_EQ(static_cast<std::uint64_t>(*fldI * 2), *(*entry).GetPtr<std::uint64_t>("z"));
+   }
+   EXPECT_EQ(*fldI, 4);
+}
+
+// TODO(fdegeus) Add test cases for duplicate field names, mismatched entry numbers

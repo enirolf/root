@@ -39,6 +39,8 @@ struct RNTupleSourceSpec {
 
    RNTupleSourceSpec() = default;
    RNTupleSourceSpec(std::string_view n, std::string_view s) : fName(n), fStorage(s) {}
+
+   bool operator==(const RNTupleSourceSpec &other) const { return fName == other.fName && fStorage == other.fStorage; }
 };
 
 // clang-format off
