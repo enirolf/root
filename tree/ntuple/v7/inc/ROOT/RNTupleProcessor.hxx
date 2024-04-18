@@ -33,15 +33,6 @@ namespace ROOT {
 namespace Experimental {
 namespace Internal {
 
-/// Helper type representing the name and storage location of an RNTuple.
-struct RNTupleSourceSpec {
-   std::string fName;
-   std::string fLocation;
-
-   RNTupleSourceSpec() = default;
-   RNTupleSourceSpec(std::string_view n, std::string_view s) : fName(n), fLocation(s) {}
-};
-
 // clang-format off
 /**
 \class ROOT::Experimental::RNTupleProcessor

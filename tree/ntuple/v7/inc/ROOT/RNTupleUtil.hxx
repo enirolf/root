@@ -232,6 +232,20 @@ auto MakeAliasedSharedPtr(T *rawPtr)
    const static std::shared_ptr<T> fgRawPtrCtrlBlock;
    return std::shared_ptr<T>(fgRawPtrCtrlBlock, rawPtr);
 }
+
+/// Helper type representing the name and storage location of an RNTuple.
+struct RNTupleSourceSpec {
+   std::string fName;
+   std::string fLocation;
+
+   RNTupleSourceSpec() = default;
+   RNTupleSourceSpec(std::string_view n, std::string_view s) : fName(n), fLocation(s) {}
+
+   bool operator==(const RNTupleSourceSpec &other) const
+   {
+      return fName == other.fName && fLocation == other.fLocation;
+   }
+};
 } // namespace Internal
 
 } // namespace Experimental
