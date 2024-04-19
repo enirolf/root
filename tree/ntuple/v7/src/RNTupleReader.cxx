@@ -251,11 +251,10 @@ ROOT::Experimental::RNTupleReader::CreateIndex(std::string_view fieldName)
 
    RNTupleIndex index(field.Clone(fieldName));
    auto entry = GetModel().CreateEntry();
-   auto token = entry->GetToken(fieldName);
+   auto ptr = entry->GetPtr<void>(entry->GetToken(fieldName));
 
    for (std::uint64_t i = 0; i < GetNEntries(); ++i) {
       LoadEntry(i, *entry);
-      auto ptr = entry->GetPtr<void>(token);
       index.Add(ptr.get(), i);
    }
 

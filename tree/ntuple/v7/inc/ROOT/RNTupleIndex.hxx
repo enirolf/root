@@ -40,7 +40,7 @@ private:
    /// The maximum number of index elements we allow to be kept in memory. Used as a failsafe.
    std::size_t fMaxElemsInMemory = 64 * 1024 * 1024;
    std::size_t fNElems = 0;
-   std::unique_ptr<RFieldBase> fField;
+   std::unique_ptr<RFieldBase> fField; // TODO Make ref?
    std::unordered_map<NTupleIndexValue_t, std::set<NTupleSize_t>> fIndex;
 
 public:
@@ -74,6 +74,8 @@ public:
       return GetEntryIndex(valuePtr.get(), lowerBound);
    }
 };
+
+std::unique_ptr<RNTupleIndex> CreateRNTupleIndex(std::string_view fieldName, RPageSource &pageSource);
 
 } // namespace Internal
 } // namespace Experimental

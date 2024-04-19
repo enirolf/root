@@ -52,3 +52,32 @@ ROOT::Experimental::Internal::RNTupleIndex::GetEntryIndex(void *valuePtr, NTuple
 
    return kInvalidNTupleIndex;
 }
+
+//------------------------------------------------------------------------------
+
+std::unique_ptr<ROOT::Experimental::Internal::RNTupleIndex>
+ROOT::Experimental::Internal::CreateRNTupleIndex(std::string_view fieldName, RPageSource &pageSource)
+{
+   pageSource.Attach();
+   auto desc = pageSource.GetSharedDescriptorGuard();
+   const auto &fieldDesc = desc->GetFieldDescriptor(desc->FindFieldId(fieldName));
+   auto fieldOrException = RFieldBase::Create(fieldDesc.GetFieldName(), fieldDesc.GetTypeName());
+   if (!fieldOrException) {
+      throw RException(R__FAIL("could not create field \"" + std::string(fieldName) + "\""));
+   }
+   auto field = fieldOrException.Unwrap();
+   field->SetOnDiskId(fieldDesc.GetId());
+
+   CallConnectPageSourceOnField(*field, pageSource);
+
+   RNTupleIndex index(field->Clone(field->GetFieldName()));
+   auto value = field->CreateValue();
+   auto ptr = value.GetPtr<void>();
+
+   for (std::uint64_t i = 0; i < pageSource.GetNEntries(); ++i) {
+      value.Read(i);
+      index.Add(ptr.get(), i);
+   }
+
+   return std::unique_ptr<RNTupleIndex>(new RNTupleIndex(index));
+}
