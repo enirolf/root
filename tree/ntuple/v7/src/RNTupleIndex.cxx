@@ -15,6 +15,11 @@
 
 #include <ROOT/RNTupleIndex.hxx>
 
+#include <TROOT.h>
+#ifdef R__USE_IMT
+#include <ROOT/TThreadExecutor.hxx>
+#endif
+
 ROOT::Experimental::Internal::RNTupleIndex &
 ROOT::Experimental::Internal::RNTupleIndex::operator=(const RNTupleIndex &other)
 {
@@ -78,4 +83,64 @@ ROOT::Experimental::Internal::RNTupleIndex::Concatenate(const RNTupleIndex &left
    index.Merge(left);
    index.Merge(right);
    return index;
+}
+
+//------------------------------------------------------------------------------
+
+std::unique_ptr<ROOT::Experimental::Internal::RNTupleIndex>
+ROOT::Experimental::Internal::CreateRNTupleIndex(std::string_view fieldName, RPageSource &pageSource)
+{
+   auto desc = pageSource.GetSharedDescriptorGuard();
+   const auto &fieldDesc = desc->GetFieldDescriptor(desc->FindFieldId(fieldName));
+   auto fieldOrException = RFieldBase::Create(fieldDesc.GetFieldName(), fieldDesc.GetTypeName());
+   if (!fieldOrException) {
+      throw RException(R__FAIL("could not create field \"" + std::string(fieldName) + "\""));
+   }
+   auto field = fieldOrException.Unwrap();
+   field->SetOnDiskId(fieldDesc.GetId());
+   CallConnectPageSourceOnField(*field, pageSource);
+
+   auto fnMakeIndex = [&field](std::pair<std::uint64_t, std::uint64_t> range) -> RNTupleIndex {
+      RNTupleIndex partialIndex(field->Clone(field->GetFieldName()));
+      auto value = field->CreateValue();
+
+      for (std::uint64_t i = range.first; i < range.second; ++i) {
+         value.Read(i);
+         auto ptr = value.GetPtr<void>();
+         partialIndex.Add(ptr.get(), i);
+      }
+
+      return partialIndex;
+   };
+
+#ifdef R__USE_IMT
+   if (ROOT::IsImplicitMTEnabled()) {
+      std::vector<std::pair<std::uint64_t, std::uint64_t>> ranges;
+
+      {
+         auto descriptorGuard = pageSource.GetSharedDescriptorGuard();
+         const std::size_t nClusters = descriptorGuard->GetNClusters();
+         std::size_t globalClusterId = 0;
+         std::size_t rangeStart = 0;
+
+         for (std::size_t c = 0; c < nClusters; ++c) {
+            const auto &clusterDesc = descriptorGuard->GetClusterDescriptor(globalClusterId++);
+            ranges.emplace_back(rangeStart, rangeStart + clusterDesc.GetNEntries());
+            rangeStart += clusterDesc.GetNEntries();
+         }
+      }
+
+      auto reducePartialIndices = [&field, &fieldName](const std::vector<RNTupleIndex> indices) -> RNTupleIndex {
+         return std::accumulate(indices.begin(), indices.end(), RNTupleIndex(field->Clone(fieldName)),
+                                RNTupleIndex::Concatenate);
+      };
+
+      auto index = ROOT::TThreadExecutor{}.MapReduce(fnMakeIndex, ranges, reducePartialIndices);
+
+      return std::make_unique<RNTupleIndex>(index);
+   }
+#endif
+
+   auto index = fnMakeIndex(std::pair<std::uint64_t, std::uint64_t>{0, pageSource.GetNEntries()});
+   return std::unique_ptr<RNTupleIndex>(new RNTupleIndex(index));
 }

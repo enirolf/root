@@ -89,6 +89,8 @@ public:
    static RNTupleIndex Concatenate(const RNTupleIndex &left, const RNTupleIndex &right);
 };
 
+std::unique_ptr<RNTupleIndex> CreateRNTupleIndex(std::string_view fieldName, RPageSource &pageSource);
+
 } // namespace Internal
 } // namespace Experimental
 } // namespace ROOT
