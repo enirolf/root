@@ -154,6 +154,13 @@ public:
          return *this;
       }
 
+      iterator operator++(int)
+      {
+         auto obj = *this;
+         Advance();
+         return obj;
+      }
+
       reference operator*()
       {
          if (fProcessor.GetPageSource().GetNEntries() == 0)
