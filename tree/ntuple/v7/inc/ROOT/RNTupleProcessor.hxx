@@ -64,6 +64,30 @@ private:
       void SetValuePtr(std::shared_ptr<void> ptr) { fValuePtr = ptr; }
    };
 
+   class RProcessorView {
+   private:
+      const REntry &fEntry;
+      const NTupleSize_t &fGlobalEntryIndex;
+      const NTupleSize_t &fLocalEntryIndex;
+      const std::size_t &fNTupleIndex;
+
+   public:
+      RProcessorView(const REntry &entry, const NTupleSize_t &globalEntryIndex, const NTupleSize_t &localEntryIndex,
+                     const std::size_t &ntupleIndex)
+         : fEntry(entry),
+           fGlobalEntryIndex(globalEntryIndex),
+           fLocalEntryIndex(localEntryIndex),
+           fNTupleIndex(ntupleIndex)
+      {
+      }
+
+      const REntry *operator->() const { return &fEntry; }
+      const REntry &GetEntry() const { return fEntry; }
+      NTupleSize_t GetGlobalEntryIndex() const { return fGlobalEntryIndex; }
+      NTupleSize_t GetLocalEntryIndex() const { return fLocalEntryIndex; }
+      std::size_t GetNTupleIndex() const { return fNTupleIndex; }
+   };
+
    const std::vector<RNTupleSourceSpec> &fNTuples;
    std::unique_ptr<RNTupleModel> fModel;
    std::unique_ptr<REntry> fEntry; ///< The entry is based on the first page source
@@ -112,14 +136,15 @@ public:
       std::size_t fNTupleIndex;
       NTupleSize_t fGlobalEntryIndex;
       NTupleSize_t fLocalEntryIndex;
+      RProcessorView fProcessorView;
 
    public:
       using iterator_category = std::forward_iterator_tag;
       using iterator = RIterator;
-      using value_type = REntry;
+      using value_type = RProcessorView;
       using difference_type = std::ptrdiff_t;
-      using pointer = REntry *;
-      using reference = const REntry &;
+      using pointer = RProcessorView *;
+      using reference = const RProcessorView &;
 
       RIterator(RNTupleProcessor &processor, const std::vector<RNTupleSourceSpec> &ntuples, std::size_t ntupleIndex,
                 NTupleSize_t globalEntryIndex)
@@ -127,7 +152,8 @@ public:
            fNTuples(ntuples),
            fNTupleIndex(ntupleIndex),
            fGlobalEntryIndex(globalEntryIndex),
-           fLocalEntryIndex(0)
+           fLocalEntryIndex(0),
+           fProcessorView(processor.GetEntry(), fGlobalEntryIndex, fLocalEntryIndex, fNTupleIndex)
       {
       }
 
@@ -167,8 +193,9 @@ public:
             Advance();
 
          fProcessor.LoadEntry(fLocalEntryIndex);
-         return fProcessor.GetEntry();
+         return fProcessorView;
       }
+
       bool operator!=(const iterator &rh) const { return fGlobalEntryIndex != rh.fGlobalEntryIndex; }
       bool operator==(const iterator &rh) const { return fGlobalEntryIndex == rh.fGlobalEntryIndex; }
    };

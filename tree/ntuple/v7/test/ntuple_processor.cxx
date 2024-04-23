@@ -30,11 +30,11 @@ TEST(RNTupleProcessor, Basic)
    }
 
    ntuples = {{"ntuple", fileGuard.GetPath()}};
-   std::uint64_t nEntries = 0;
 
+   int nEntries = 0;
    for (const auto &entry : RNTupleProcessor(ntuples)) {
-      auto x = entry.GetPtr<float>("x");
-      EXPECT_EQ(static_cast<float>(nEntries), *x);
+      auto x = entry->GetPtr<float>("x");
+      EXPECT_EQ(static_cast<float>(entry.GetGlobalEntryIndex()), *x);
       ++nEntries;
    }
    EXPECT_EQ(nEntries, 10);
@@ -73,12 +73,17 @@ TEST(RNTupleProcessor, SimpleChain)
 
    std::uint64_t nEntries = 0;
    for (const auto &entry : RNTupleProcessor(ntuples)) {
-      auto x = entry.GetPtr<float>("x");
-      EXPECT_EQ(static_cast<float>(nEntries), *x);
+      auto x = entry->GetPtr<float>("x");
+      EXPECT_EQ(static_cast<float>(entry.GetGlobalEntryIndex()), *x);
 
-      auto y = entry.GetPtr<std::vector<float>>("y");
-      std::vector<float> yExp = {static_cast<float>(nEntries), static_cast<float>(nEntries * 2)};
+      auto y = entry->GetPtr<std::vector<float>>("y");
+      std::vector<float> yExp = {static_cast<float>(entry.GetGlobalEntryIndex()), static_cast<float>(nEntries * 2)};
       EXPECT_EQ(yExp, *y);
+
+      if (entry.GetLocalEntryIndex() == 0) {
+         EXPECT_THAT(entry.GetGlobalEntryIndex(), testing::AnyOf(0, 5));
+      }
+
       ++nEntries;
    }
    EXPECT_EQ(nEntries, 8);
@@ -135,7 +140,7 @@ TEST(RNTupleProcessor, EmptyNTuples)
 
    std::uint64_t nEntries = 0;
    for (const auto &entry : RNTupleProcessor(ntuples)) {
-      auto x = entry.GetPtr<float>("x");
+      auto x = entry->GetPtr<float>("x");
       EXPECT_EQ(static_cast<float>(nEntries), *x);
       ++nEntries;
    }
@@ -164,8 +169,8 @@ TEST(RNTupleProcessor, ChainUnalignedModels)
 
    auto proc = RNTupleProcessor(ntuples);
    auto entry = proc.begin();
-   auto x = (*entry).GetPtr<float>("x");
-   auto y = (*entry).GetPtr<char>("y");
+   auto x = (*entry)->GetPtr<float>("x");
+   auto y = (*entry)->GetPtr<char>("y");
    EXPECT_EQ(0., *x);
    EXPECT_EQ('a', *y);
 
