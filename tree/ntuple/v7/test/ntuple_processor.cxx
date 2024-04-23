@@ -141,3 +141,38 @@ TEST(RNTupleProcessor, EmptyNTuples)
    }
    EXPECT_EQ(nEntries, 5);
 }
+
+TEST(RNTupleProcessor, ChainUnalignedModels)
+{
+   FileRaii fileGuard1("test_ntuple_processor_simple_chain1.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldX = model->MakeField<float>("x", 0.);
+      auto fldY = model->MakeField<char>("y", 'a');
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard1.GetPath());
+      ntuple->Fill();
+   }
+   FileRaii fileGuard2("test_ntuple_processor_simple_chain2.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldX = model->MakeField<float>("x", 1.);
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard2.GetPath());
+      ntuple->Fill();
+   }
+
+   std::vector<RNTupleSourceSpec> ntuples = {{"ntuple", fileGuard1.GetPath()}, {"ntuple", fileGuard2.GetPath()}};
+
+   auto proc = RNTupleProcessor(ntuples);
+   auto entry = proc.begin();
+   auto x = (*entry).GetPtr<float>("x");
+   auto y = (*entry).GetPtr<char>("y");
+   EXPECT_EQ(0., *x);
+   EXPECT_EQ('a', *y);
+
+   try {
+      entry++;
+      FAIL() << "trying to connect a new page source containing additional (unknown) fields is not supported";
+   } catch (const RException &err) {
+      EXPECT_THAT(err.what(), testing::HasSubstr("field \"y\" not found in current RNTuple"));
+   }
+}

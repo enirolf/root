@@ -31,9 +31,15 @@ ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleProcessor::ConnectNT
 void ROOT::Experimental::RNTupleProcessor::ConnectFields()
 {
    auto desc = fPageSource->GetSharedDescriptorGuard();
-   for (auto &fieldContext : fFieldContexts) {
-      fieldContext.SetConcreteField();
 
+   for (auto &fieldContext : fFieldContexts) {
+      auto fieldId = desc->FindFieldId(fieldContext.GetProtoField().GetFieldName());
+      if (fieldId == kInvalidDescriptorId) {
+         throw RException(
+            R__FAIL("field \"" + fieldContext.GetProtoField().GetFieldName() + "\" not found in current RNTuple"));
+      }
+
+      fieldContext.SetConcreteField();
       fieldContext.GetConcreteField().SetOnDiskId(desc->FindFieldId(fieldContext.GetProtoField().GetFieldName()));
       Internal::CallConnectPageSourceOnField(fieldContext.GetConcreteField(), *fPageSource);
 
