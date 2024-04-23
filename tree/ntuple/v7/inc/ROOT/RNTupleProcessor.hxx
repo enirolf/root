@@ -40,52 +40,49 @@ struct RNTupleSourceSpec {
    RNTupleSourceSpec(std::string_view n, std::string_view s) : fName(n), fStorage(s) {}
 };
 
-namespace Internal {
-class RNTupleProcessorContext {
+class RNTupleProcessor {
 private:
-   struct RFieldContext {
-      std::unique_ptr<ROOT::Experimental::RFieldBase> fProtoField;
-      std::unique_ptr<ROOT::Experimental::RFieldBase> fConcreteField;
+   class RFieldContext {
+   private:
+      std::unique_ptr<RFieldBase> fProtoField;
+      std::unique_ptr<RFieldBase> fConcreteField;
       REntry::RFieldToken fToken;
       std::shared_ptr<void> fValuePtr;
 
-      RFieldContext(std::unique_ptr<ROOT::Experimental::RFieldBase> protoField, REntry::RFieldToken token)
+   public:
+      RFieldContext(std::unique_ptr<RFieldBase> protoField, REntry::RFieldToken token)
          : fProtoField(std::move(protoField)), fToken(token)
       {
       }
 
+      RFieldBase &GetProtoField() const { return *fProtoField; }
       void ResetConcreteField() { fConcreteField = nullptr; }
       void SetConcreteField() { fConcreteField = fProtoField->Clone(fProtoField->GetFieldName()); }
+      RFieldBase &GetConcreteField() const { return *fConcreteField; }
+      const REntry::RFieldToken &GetToken() const { return fToken; }
+      std::shared_ptr<void> GetValuePtr() const { return fValuePtr; }
+      void SetValuePtr(std::shared_ptr<void> ptr) { fValuePtr = ptr; }
    };
 
+   const std::vector<RNTupleSourceSpec> &fNTuples;
    std::unique_ptr<RNTupleModel> fModel;
    std::unique_ptr<REntry> fEntry; ///< The entry is based on the first page source
    std::unique_ptr<Internal::RPageSource> fPageSource;
    std::vector<RFieldContext> fFieldContexts;
 
-public:
-   RNTupleProcessorContext(const RNTupleSourceSpec &ntuple);
-
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Initializes the processor context
+   /// \brief Connect an RNTuple for processing
    ///
-   /// Recursively creates so-called 'protofields' based on the model of the first page source, which will serve as
-   /// a basis for all subsequent RNTuples to be processed.
-   void Initialize();
-
-   /////////////////////////////////////////////////////////////////////////////
-   /// \brief Updates the processor context
-   ///
-   /// \param[in] ntuple The RNTuple to connect for processing
+   /// \param[in] ntuple The RNTupleSourceSpec describing the RNTuple to connect
    ///
    /// \return The number of entries in the newly-connected RNTuple
    ///
    /// Creates and attaches new page source for the specified RNTuple, and connects the fields that are known by
-   /// the processor context to it.
-   NTupleSize_t Update(const RNTupleSourceSpec &ntuple);
+   /// the processor to it.
+   NTupleSize_t ConnectNTuple(const RNTupleSourceSpec &ntuple);
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Creates and connects concrete fields to the current page source, based on the protofields
+   /// \brief Creates and connects concrete fields to the current page source, based on the proto-fields
    void ConnectFields();
 
    /////////////////////////////////////////////////////////////////////////////
@@ -94,31 +91,23 @@ public:
    /// \param[in] index The index (local to the current RNTuple) of the entry to load.
    void LoadEntry(NTupleSize_t index) { fEntry->Read(index); }
 
+public:
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Returns a reference to the entry in this context
+   /// \brief Returns a reference to the entry used by the processor
    ///
-   /// \return A reference to the entry from this context
+   /// \return A reference to the entry used by the processor
    ///
    const REntry &GetEntry() const { return *fEntry; }
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Returns a reference to the page source currently used in this context
+   /// \brief Returns a reference to the page source currently used in the processor
    ///
    /// \return A reference to the page source
    Internal::RPageSource &GetPageSource() const { return *fPageSource; }
-};
-} // namespace Internal
 
-class RNTupleProcessor {
-private:
-   const std::vector<RNTupleSourceSpec> &fNTuples;
-   std::unique_ptr<REntry> fEntry; ///< The entry is based on the first page source
-   std::unique_ptr<Internal::RNTupleProcessorContext> fContext;
-
-public:
    class RIterator {
    private:
-      Internal::RNTupleProcessorContext &fContext;
+      RNTupleProcessor &fProcessor;
       const std::vector<RNTupleSourceSpec> &fNTuples;
       std::size_t fNTupleIndex;
       NTupleSize_t fGlobalEntryIndex;
@@ -132,9 +121,9 @@ public:
       using pointer = REntry *;
       using reference = const REntry &;
 
-      RIterator(Internal::RNTupleProcessorContext &context, const std::vector<RNTupleSourceSpec> &ntuples,
-                std::size_t ntupleIndex, NTupleSize_t globalEntryIndex)
-         : fContext(context),
+      RIterator(RNTupleProcessor &processor, const std::vector<RNTupleSourceSpec> &ntuples, std::size_t ntupleIndex,
+                NTupleSize_t globalEntryIndex)
+         : fProcessor(processor),
            fNTuples(ntuples),
            fNTupleIndex(ntupleIndex),
            fGlobalEntryIndex(globalEntryIndex),
@@ -146,13 +135,14 @@ public:
       {
          ++fGlobalEntryIndex;
 
-         if (++fLocalEntryIndex >= fContext.GetPageSource().GetNEntries()) {
+         if (++fLocalEntryIndex >= fProcessor.GetPageSource().GetNEntries()) {
             do {
                if (++fNTupleIndex >= fNTuples.size()) {
                   fGlobalEntryIndex = kInvalidNTupleIndex;
                   return;
                }
-            } while (fContext.Update(fNTuples.at(fNTupleIndex)) == 0); // Skip over any empty ntuples we encounter
+            } while (fProcessor.ConnectNTuple(fNTuples.at(fNTupleIndex)) ==
+                     0); // Skip over any empty ntuples we encounter
 
             fLocalEntryIndex = 0;
          }
@@ -166,11 +156,11 @@ public:
 
       reference operator*()
       {
-         if (fContext.GetPageSource().GetNEntries() == 0)
+         if (fProcessor.GetPageSource().GetNEntries() == 0)
             Advance();
 
-         fContext.LoadEntry(fLocalEntryIndex);
-         return fContext.GetEntry();
+         fProcessor.LoadEntry(fLocalEntryIndex);
+         return fProcessor.GetEntry();
       }
       bool operator!=(const iterator &rh) const { return fGlobalEntryIndex != rh.fGlobalEntryIndex; }
       bool operator==(const iterator &rh) const { return fGlobalEntryIndex == rh.fGlobalEntryIndex; }
@@ -184,8 +174,8 @@ public:
 
    RNTupleProcessor(const std::vector<RNTupleSourceSpec> &ntuples);
 
-   RIterator begin() { return RIterator(*fContext, fNTuples, 0, 0); }
-   RIterator end() { return RIterator(*fContext, fNTuples, fNTuples.size(), kInvalidNTupleIndex); }
+   RIterator begin() { return RIterator(*this, fNTuples, 0, 0); }
+   RIterator end() { return RIterator(*this, fNTuples, fNTuples.size(), kInvalidNTupleIndex); }
 };
 
 } // namespace Experimental

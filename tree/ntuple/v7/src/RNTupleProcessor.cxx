@@ -17,17 +17,48 @@
 
 #include <ROOT/RField.hxx>
 
-ROOT::Experimental::Internal::RNTupleProcessorContext::RNTupleProcessorContext(const RNTupleSourceSpec &ntuple)
+ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleProcessor::ConnectNTuple(const RNTupleSourceSpec &ntuple)
 {
-   fPageSource = RPageSource::Create(ntuple.fName, ntuple.fStorage);
+   for (auto &fieldContext : fFieldContexts) {
+      fieldContext.ResetConcreteField();
+   }
+   fPageSource = Internal::RPageSource::Create(ntuple.fName, ntuple.fStorage);
+   fPageSource->Attach();
+   ConnectFields();
+   return fPageSource->GetNEntries();
+}
+
+void ROOT::Experimental::RNTupleProcessor::ConnectFields()
+{
+   auto desc = fPageSource->GetSharedDescriptorGuard();
+   for (auto &fieldContext : fFieldContexts) {
+      fieldContext.SetConcreteField();
+
+      fieldContext.GetConcreteField().SetOnDiskId(desc->FindFieldId(fieldContext.GetProtoField().GetFieldName()));
+      Internal::CallConnectPageSourceOnField(fieldContext.GetConcreteField(), *fPageSource);
+
+      if (fieldContext.GetValuePtr()) {
+         fEntry->UpdateValue(fieldContext.GetToken(),
+                             fieldContext.GetConcreteField().BindValue(fieldContext.GetValuePtr()));
+      } else {
+         auto value = fieldContext.GetConcreteField().CreateValue();
+         fieldContext.GetValuePtr() = value.GetPtr<void>();
+         fEntry->UpdateValue(fieldContext.GetToken(), value);
+      }
+   }
+}
+
+ROOT::Experimental::RNTupleProcessor::RNTupleProcessor(const std::vector<RNTupleSourceSpec> &ntuples)
+   : fNTuples(ntuples)
+{
+   if (fNTuples.empty())
+      throw RException(R__FAIL("at least one RNTuple must be provided"));
+
+   fPageSource = Internal::RPageSource::Create(fNTuples[0].fName, fNTuples[0].fStorage);
    fPageSource->Attach();
    fModel = fPageSource->GetSharedDescriptorGuard()->CreateModel();
    fEntry = fModel->CreateBareEntry();
-}
 
-void ROOT::Experimental::Internal::RNTupleProcessorContext::Initialize()
-{
-   fPageSource->Attach();
    auto desc = fPageSource->GetSharedDescriptorGuard();
 
    auto fnSetProcessorFields = [&](DescriptorId_t fieldId, auto &setFunc) -> void {
@@ -47,45 +78,4 @@ void ROOT::Experimental::Internal::RNTupleProcessorContext::Initialize()
 
    fnSetProcessorFields(desc->GetFieldZeroId(), fnSetProcessorFields);
    ConnectFields();
-}
-
-ROOT::Experimental::NTupleSize_t
-ROOT::Experimental::Internal::RNTupleProcessorContext::Update(const RNTupleSourceSpec &ntuple)
-{
-   for (auto &field : fFieldContexts) {
-      field.ResetConcreteField();
-   }
-   fPageSource = RPageSource::Create(ntuple.fName, ntuple.fStorage);
-   fPageSource->Attach();
-   ConnectFields();
-   return fPageSource->GetNEntries();
-}
-
-void ROOT::Experimental::Internal::RNTupleProcessorContext::ConnectFields()
-{
-   auto desc = fPageSource->GetSharedDescriptorGuard();
-   for (auto &field : fFieldContexts) {
-      field.SetConcreteField();
-
-      field.fConcreteField->SetOnDiskId(desc->FindFieldId(field.fProtoField->GetFieldName()));
-      Internal::CallConnectPageSourceOnField(*field.fConcreteField, *fPageSource);
-
-      if (field.fValuePtr) {
-         fEntry->UpdateValue(field.fToken, field.fConcreteField->BindValue(field.fValuePtr));
-      } else {
-         auto value = field.fConcreteField->CreateValue();
-         field.fValuePtr = value.GetPtr<void>();
-         fEntry->UpdateValue(field.fToken, value);
-      }
-   }
-}
-
-ROOT::Experimental::RNTupleProcessor::RNTupleProcessor(const std::vector<RNTupleSourceSpec> &ntuples)
-   : fNTuples(ntuples)
-{
-   if (fNTuples.empty())
-      throw RException(R__FAIL("at least one RNTuple must be provided"));
-
-   fContext = std::make_unique<Internal::RNTupleProcessorContext>(fNTuples[0]);
-   fContext->Initialize();
 }
