@@ -61,21 +61,13 @@ ROOT::Experimental::RNTupleProcessor::RNTupleProcessor(const std::vector<RNTuple
 
    auto desc = fPageSource->GetSharedDescriptorGuard();
 
-   auto fnSetProcessorFields = [&](DescriptorId_t fieldId, auto &setFunc) -> void {
-      auto &fieldDesc = desc->GetFieldDescriptor(fieldId);
-
+   for (const auto &fieldDesc : desc->GetTopLevelFields()) {
       auto fieldOrException = RFieldBase::Create(fieldDesc.GetFieldName(), fieldDesc.GetTypeName());
       if (fieldOrException) {
          auto field = fieldOrException.Unwrap();
-         field->SetOnDiskId(fieldId);
          fFieldContexts.emplace_back(std::move(field), fEntry->GetToken(fieldDesc.GetFieldName()));
       }
+   }
 
-      for (const auto &subFieldDesc : desc->GetFieldIterable(fieldId)) {
-         setFunc(subFieldDesc.GetId(), setFunc);
-      }
-   };
-
-   fnSetProcessorFields(desc->GetFieldZeroId(), fnSetProcessorFields);
    ConnectFields();
 }
