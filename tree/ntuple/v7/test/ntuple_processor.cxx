@@ -1,0 +1,135 @@
+#include "ntuple_test.hxx"
+
+#include <ROOT/RNTupleProcessor.hxx>
+
+using ROOT::Experimental::RNTupleModel;
+using ROOT::Experimental::RNTupleProcessor;
+using ROOT::Experimental::RNTupleSourceSpec;
+using ROOT::Experimental::RNTupleWriter;
+
+TEST(RNTupleProcessor, Basic)
+{
+   FileRaii fileGuard("test_ntuple_processor_basic.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldX = model->MakeField<float>("x");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard.GetPath());
+
+      for (unsigned i = 0; i < 10; ++i) {
+         *fldX = static_cast<float>(i);
+         ntuple->Fill();
+      }
+   }
+
+   std::vector<RNTupleSourceSpec> ntuples;
+   try {
+      RNTupleProcessor proc(ntuples);
+      FAIL() << "creating a processor without at least one RNTuple should throw";
+   } catch (const RException &err) {
+      EXPECT_THAT(err.what(), testing::HasSubstr("at least one RNTuple must be provided"));
+   }
+
+   ntuples = {{"ntuple", fileGuard.GetPath()}};
+   std::uint64_t nEntries = 0;
+
+   for (const auto &entry : RNTupleProcessor(ntuples)) {
+      auto x = entry.GetPtr<float>("x");
+      EXPECT_EQ(static_cast<float>(nEntries), *x);
+      ++nEntries;
+   }
+   EXPECT_EQ(nEntries, 10);
+}
+
+TEST(RNTupleProcessor, SimpleChain)
+{
+   FileRaii fileGuard1("test_ntuple_processor_simple_chain1.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldX = model->MakeField<float>("x");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard1.GetPath());
+
+      for (unsigned i = 0; i < 5; ++i) {
+         *fldX = static_cast<float>(i);
+         ntuple->Fill();
+      }
+   }
+   FileRaii fileGuard2("test_ntuple_processor_simple_chain2.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldX = model->MakeField<float>("x");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard2.GetPath());
+
+      for (unsigned i = 5; i < 8; ++i) {
+         *fldX = static_cast<float>(i);
+         ntuple->Fill();
+      }
+   }
+
+   std::vector<RNTupleSourceSpec> ntuples = {{"ntuple", fileGuard1.GetPath()}, {"ntuple", fileGuard2.GetPath()}};
+
+   std::uint64_t nEntries = 0;
+   for (const auto &entry : RNTupleProcessor(ntuples)) {
+      auto x = entry.GetPtr<float>("x");
+      EXPECT_EQ(static_cast<float>(nEntries), *x);
+      ++nEntries;
+   }
+   EXPECT_EQ(nEntries, 8);
+}
+
+TEST(RNTupleProcessor, EmptyNTuples)
+{
+   FileRaii fileGuard1("test_ntuple_processor_empty_ntuples1.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldX = model->MakeField<float>("x");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard1.GetPath());
+   }
+   FileRaii fileGuard2("test_ntuple_processor_empty_ntuples2.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldX = model->MakeField<float>("x");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard2.GetPath());
+
+      for (unsigned i = 0; i < 2; ++i) {
+         *fldX = static_cast<float>(i);
+         ntuple->Fill();
+      }
+   }
+   FileRaii fileGuard3("test_ntuple_processor_empty_ntuples3.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldX = model->MakeField<float>("x");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard3.GetPath());
+   }
+   FileRaii fileGuard4("test_ntuple_processor_empty_ntuples4.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldX = model->MakeField<float>("x");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard4.GetPath());
+
+      for (unsigned i = 2; i < 5; ++i) {
+         *fldX = static_cast<float>(i);
+         ntuple->Fill();
+      }
+   }
+   FileRaii fileGuard5("test_ntuple_processor_empty_ntuples5.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldX = model->MakeField<float>("x");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard5.GetPath());
+   }
+
+   std::vector<RNTupleSourceSpec> ntuples = {{"ntuple", fileGuard1.GetPath()},
+                                             {"ntuple", fileGuard2.GetPath()},
+                                             {"ntuple", fileGuard3.GetPath()},
+                                             {"ntuple", fileGuard4.GetPath()},
+                                             {"ntuple", fileGuard5.GetPath()}};
+
+   std::uint64_t nEntries = 0;
+   for (const auto &entry : RNTupleProcessor(ntuples)) {
+      auto x = entry.GetPtr<float>("x");
+      EXPECT_EQ(static_cast<float>(nEntries), *x);
+      ++nEntries;
+   }
+   EXPECT_EQ(nEntries, 5);
+}
