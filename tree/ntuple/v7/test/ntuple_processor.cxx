@@ -46,10 +46,12 @@ TEST(RNTupleProcessor, SimpleChain)
    {
       auto model = RNTupleModel::Create();
       auto fldX = model->MakeField<float>("x");
+      auto fldY = model->MakeField<std::vector<float>>("y");
       auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard1.GetPath());
 
       for (unsigned i = 0; i < 5; ++i) {
          *fldX = static_cast<float>(i);
+         *fldY = {static_cast<float>(i), static_cast<float>(i * 2)};
          ntuple->Fill();
       }
    }
@@ -57,10 +59,12 @@ TEST(RNTupleProcessor, SimpleChain)
    {
       auto model = RNTupleModel::Create();
       auto fldX = model->MakeField<float>("x");
+      auto fldY = model->MakeField<std::vector<float>>("y");
       auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard2.GetPath());
 
       for (unsigned i = 5; i < 8; ++i) {
          *fldX = static_cast<float>(i);
+         *fldY = {static_cast<float>(i), static_cast<float>(i * 2)};
          ntuple->Fill();
       }
    }
@@ -71,6 +75,10 @@ TEST(RNTupleProcessor, SimpleChain)
    for (const auto &entry : RNTupleProcessor(ntuples)) {
       auto x = entry.GetPtr<float>("x");
       EXPECT_EQ(static_cast<float>(nEntries), *x);
+
+      auto y = entry.GetPtr<std::vector<float>>("y");
+      std::vector<float> yExp = {static_cast<float>(nEntries), static_cast<float>(nEntries * 2)};
+      EXPECT_EQ(yExp, *y);
       ++nEntries;
    }
    EXPECT_EQ(nEntries, 8);
