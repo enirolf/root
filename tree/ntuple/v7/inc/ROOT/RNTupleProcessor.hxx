@@ -32,6 +32,7 @@
 namespace ROOT {
 namespace Experimental {
 
+/// Helper type representing the name and storage location of an RNTuple.
 struct RNTupleSourceSpec {
    std::string fName;
    std::string fStorage;
@@ -40,8 +41,57 @@ struct RNTupleSourceSpec {
    RNTupleSourceSpec(std::string_view n, std::string_view s) : fName(n), fStorage(s) {}
 };
 
+// clang-format off
+/**
+\class ROOT::Experimental::RNTupleProcessor
+\ingroup NTuple
+\brief Interface for iterating over entries of RNTuples and vertically concatenated RNTuples (chains).
+
+Example usage (see ntpl012_processor.C for a full example):
+
+~~~{.cpp}
+#include <ROOT/RNTupleProcessor.hxx>
+using ROOT::Experimental::RNTupleProcessor;
+using ROOT::Experimental::RNTupleSourceSpec;
+
+std::vector<RNTupleSourceSpec> ntuples = {{"ntuple1", "ntuple1.root"}, {"ntuple2", "ntuple2.root"}};
+
+for (const auto &entry : RNTupleProcessor(ntuples)) {
+   auto pt = entry->GetPtr<std::vector<float>>("pt");
+}
+~~~
+
+An RNTupleProcessor is created by providing one or more RNTupleSourceSpecs, each of which contains the name and storage
+location of a single RNTuple. The RNTuples are subsequently processed in the order in which they were provided.
+
+The default model of the RNTuple that is provided first will be used to construct the fields in the entry that will be
+filled in each iteration. This entry is owned by the RNTupleProcessor.
+If subsequently processed RNTuples contain additional fields, they will be ignored.
+Conversely, if a field that was present in the first RNTuple is not found in a subsequent one, an error will be thrown.
+
+The object returned by the RNTupleProcessor iterator is a view on the current state of the processor, and provides
+access to the global entry index (i.e., the entry index taking into account all processed ntuples), local entry index
+(i.e. the entry index for only the currently processed ntuple), the index of the ntuple currently being processed (with
+respect to the order of provided RNTupleSpecs) and the actual REntry containing the values for the current entry.
+*/
+// clang-format on
 class RNTupleProcessor {
 private:
+   // clang-format off
+   /**
+   \class ROOT::Experimental::RNTupleProcessor::RFieldContext
+   \ingroup NTuple
+   \brief Manager for a field as part of the RNTupleProcessor.
+
+   An RFieldContext contains two fields: a proto-field which is not connected to any page source but serves as the
+   blueprint for this particular field, and a concrete field that is connected to the page source currently connected
+   to the RNTupleProcessor object for reading. When a new page source is connected, the concrete field gets reset by
+   cloning the proto-field and connecting it to the new page source.
+
+   Apart from the fields themselves, the RFieldContext object also manages the pointer to the value for this particular
+   field that's read by the processor.
+   */
+   // clang-format on
    class RFieldContext {
    private:
       std::unique_ptr<RFieldBase> fProtoField;
@@ -64,6 +114,13 @@ private:
       void SetValuePtr(std::shared_ptr<void> ptr) { fValuePtr = ptr; }
    };
 
+   // clang-format off
+   /**
+   \class ROOT::Experimental::RNTupleProcessor::RProcessorView
+   \ingroup NTuple
+   \brief View on the RNTupleProcessor iterator state.
+   */
+   // clang-format on
    class RProcessorView {
    private:
       const REntry &fEntry;
@@ -90,45 +147,52 @@ private:
 
    const std::vector<RNTupleSourceSpec> &fNTuples;
    std::unique_ptr<RNTupleModel> fModel;
-   std::unique_ptr<REntry> fEntry; ///< The entry is based on the first page source
+   std::unique_ptr<REntry> fEntry;
    std::unique_ptr<Internal::RPageSource> fPageSource;
    std::vector<RFieldContext> fFieldContexts;
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Connect an RNTuple for processing
+   /// \brief Connect an RNTuple for processing.
    ///
-   /// \param[in] ntuple The RNTupleSourceSpec describing the RNTuple to connect
+   /// \param[in] ntuple The RNTupleSourceSpec describing the RNTuple to connect.
    ///
-   /// \return The number of entries in the newly-connected RNTuple
+   /// \return The number of entries in the newly-connected RNTuple.
    ///
    /// Creates and attaches new page source for the specified RNTuple, and connects the fields that are known by
    /// the processor to it.
    NTupleSize_t ConnectNTuple(const RNTupleSourceSpec &ntuple);
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Creates and connects concrete fields to the current page source, based on the proto-fields
+   /// \brief Creates and connects concrete fields to the current page source, based on the proto-fields.
    void ConnectFields();
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Loads an entry
+   /// \brief Loads an entry.
    ///
    /// \param[in] index The index (local to the current RNTuple) of the entry to load.
    void LoadEntry(NTupleSize_t index) { fEntry->Read(index); }
 
 public:
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Returns a reference to the entry used by the processor
+   /// \brief Returns a reference to the entry used by the processor.
    ///
-   /// \return A reference to the entry used by the processor
+   /// \return A reference to the entry used by the processor.
    ///
    const REntry &GetEntry() const { return *fEntry; }
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Returns a reference to the page source currently used in the processor
+   /// \brief Returns a reference to the page source currently used in the processor.
    ///
-   /// \return A reference to the page source
+   /// \return A reference to the page source.
    Internal::RPageSource &GetPageSource() const { return *fPageSource; }
 
+   // clang-format off
+   /**
+   \class ROOT::Experimental::RNTupleProcessor::RIterator
+   \ingroup NTuple
+   \brief Iterator over the entries of an RNTuple, or vertical concatenation thereof.
+   */
+   // clang-format on
    class RIterator {
    private:
       RNTupleProcessor &fProcessor;
@@ -157,6 +221,11 @@ public:
       {
       }
 
+      //////////////////////////////////////////////////////////////////////////
+      /// \brief Increments the entry index.
+      ///
+      /// Checks if the end of the currently connected RNTuple is reached. If this is the case, either the next RNTuple
+      /// is connected or the iterator has reached the end.
       void Advance()
       {
          ++fGlobalEntryIndex;
@@ -167,8 +236,8 @@ public:
                   fGlobalEntryIndex = kInvalidNTupleIndex;
                   return;
                }
-            } while (fProcessor.ConnectNTuple(fNTuples.at(fNTupleIndex)) ==
-                     0); // Skip over any empty ntuples we encounter
+               // Skip over empty ntuples we might encounter.
+            } while (fProcessor.ConnectNTuple(fNTuples.at(fNTupleIndex)) == 0);
 
             fLocalEntryIndex = 0;
          }
@@ -206,6 +275,12 @@ public:
    RNTupleProcessor &operator=(RNTupleProcessor &&other) = delete;
    ~RNTupleProcessor() = default;
 
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Constructs a new RNTupleProcessor.
+   ///
+   /// \param[in] ntuples The source specification (name and storage location) for each RNTuple to process.
+   ///
+   /// RNTuples are processed in the order in which they are specified.
    RNTupleProcessor(const std::vector<RNTupleSourceSpec> &ntuples);
 
    RIterator begin() { return RIterator(*this, fNTuples, 0, 0); }
