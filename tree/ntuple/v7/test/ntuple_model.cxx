@@ -20,8 +20,8 @@ TEST(RNTUpleModel, Merge)
 
    auto mergedModel = ROOT::Experimental::Internal::MergeModels(*model1, *model2);
 
-   EXPECT_EQ(mergedModel->GetField("x").GetFieldName(), "x");
-   EXPECT_EQ(mergedModel->GetField("y").GetFieldName(), "y");
+   EXPECT_EQ(mergedModel->GetField("x").GetQualifiedFieldName(), "x");
+   EXPECT_EQ(mergedModel->GetField("y").GetQualifiedFieldName(), "y");
 }
 
 TEST(RNTUpleModel, MergeWithPrefix)
@@ -32,6 +32,7 @@ TEST(RNTUpleModel, MergeWithPrefix)
 
    auto model2 = RNTupleModel::Create();
    model2->MakeField<int>("x");
+   model2->MakeField<std::vector<float>>("y");
    model2->Freeze();
 
    try {
@@ -43,6 +44,6 @@ TEST(RNTUpleModel, MergeWithPrefix)
 
    auto mergedModel = ROOT::Experimental::Internal::MergeModels(*model1, *model2, "n");
 
-   EXPECT_EQ(mergedModel->GetField("x").GetFieldName(), "x");
-   EXPECT_EQ(mergedModel->GetField("n:x").GetFieldName(), "n:x");
+   EXPECT_EQ(mergedModel->GetField("x").GetQualifiedFieldName(), "x");
+   EXPECT_EQ(mergedModel->GetField("n.x").GetQualifiedFieldName(), "n.x");
 }
