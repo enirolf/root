@@ -55,21 +55,59 @@ private:
    private:
       std::unique_ptr<RFieldBase> fField;
       Internal::RPageSource &fPageSource;
-      REntry::RFieldToken fToken;
-      std::shared_ptr<void> fValuePtr;
+      RFieldBase::RValue fValue;
 
    public:
-      RFieldContext(std::unique_ptr<ROOT::Experimental::RFieldBase> field, Internal::RPageSource &pageSource,
-                    REntry::RFieldToken token)
-         : fField(std::move(field)), fPageSource(pageSource), fToken(token)
+      RFieldContext(const RFieldContext &other) = delete;
+      RFieldContext &operator=(const RFieldContext &other) = delete;
+      RFieldContext(RFieldContext &&other) = delete;
+      RFieldContext &operator=(RFieldContext &&other) = delete;
+      ~RFieldContext() = default;
+
+      RFieldContext(std::unique_ptr<ROOT::Experimental::RFieldBase> field, Internal::RPageSource &pageSource)
+         : fField(std::move(field)), fPageSource(pageSource)
       {
+         fValue = fField->CreateValue();
       }
 
       RFieldBase &GetField() const { return *fField; }
       Internal::RPageSource &GetPageSource() const { return fPageSource; }
-      const REntry::RFieldToken &GetToken() const { return fToken; }
-      std::shared_ptr<void> GetValuePtr() const { return fValuePtr; }
-      void SetValuePtr(std::shared_ptr<void> ptr) { fValuePtr = ptr; }
+      std::shared_ptr<void> GetValuePtr() const { return fValue.GetPtr<void>(); }
+      void SetValuePtr(std::shared_ptr<void> ptr) { fValue.Bind(ptr); }
+      void ReadValue(NTupleSize_t entryIndex) { fValue.Read(entryIndex); }
+
+      template <typename T>
+      std::shared_ptr<T> GetPtr() const
+      {
+         return fValue.GetPtr<T>();
+      }
+   };
+
+   // clang-format off
+   /**
+   \class ROOT::Experimental::RNTupleProcessor::RProcessorView
+   \ingroup NTuple
+   \brief View on the RNTupleProcessor iterator state.
+   */
+   // clang-format on
+   class RProcessorView {
+   private:
+      const NTupleSize_t &fEntryIndex;
+      const std::unordered_map<std::string, RFieldContext> &fFields;
+
+   public:
+      RProcessorView(const NTupleSize_t &entryIndex, const std::unordered_map<std::string, RFieldContext> &fields)
+         : fEntryIndex(entryIndex), fFields(fields)
+      {
+      }
+
+      NTupleSize_t GetEntryIndex() const { return fEntryIndex; }
+
+      template <typename T>
+      std::shared_ptr<T> GetPtr(const std::string &fieldName) const
+      {
+         return fFields.at(fieldName).GetPtr<T>();
+      }
    };
 
    const std::vector<RNTupleSourceSpec> &fNTuples;
@@ -77,7 +115,7 @@ private:
    std::unique_ptr<REntry> fEntry; ///< The entry is based on the first page source
    std::unique_ptr<Internal::RPageSource> fPrimaryPageSource;
    std::vector<std::unique_ptr<Internal::RPageSource>> fSecondaryPageSources;
-   std::vector<RFieldContext> fFieldContexts;
+   std::unordered_map<std::string, RFieldContext> fFieldContexts;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Make sure none of the horizontally concatenated RNTuples bear the same name
@@ -104,7 +142,12 @@ private:
    /// \brief Loads an entry.
    ///
    /// \param[in] index The index (local to the current RNTuple) of the entry to load.
-   void LoadEntry(NTupleSize_t index) { fEntry->Read(index); }
+   void LoadEntry(NTupleSize_t index)
+   {
+      for (auto &[_, fieldContext] : fFieldContexts) {
+         fieldContext.ReadValue(index);
+      }
+   }
 
 public:
    RNTupleHorizontalProcessor(const RNTupleHorizontalProcessor &other) = delete;
@@ -114,12 +157,6 @@ public:
    ~RNTupleHorizontalProcessor() = default;
 
    RNTupleHorizontalProcessor(const std::vector<RNTupleSourceSpec> &ntuples);
-
-   /////////////////////////////////////////////////////////////////////////////
-   /// \brief Returns a reference to the entry used by the processor.
-   ///
-   /// \return A reference to the entry used by the processor.
-   const REntry &GetEntry() const { return *fEntry; }
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Returns a reference to the model used by the processor.
@@ -138,18 +175,22 @@ public:
       RNTupleHorizontalProcessor &fProcessor;
       const std::vector<RNTupleSourceSpec> &fNTuples;
       NTupleSize_t fEntryIndex;
+      RProcessorView fProcessorView;
 
    public:
       using iterator_category = std::forward_iterator_tag;
       using iterator = RIterator;
-      using value_type = REntry;
+      using value_type = RProcessorView;
       using difference_type = std::ptrdiff_t;
-      using pointer = REntry *;
-      using reference = const REntry &;
+      using pointer = RProcessorView *;
+      using reference = const RProcessorView &;
 
       RIterator(RNTupleHorizontalProcessor &processor, const std::vector<RNTupleSourceSpec> &ntuples,
                 std::size_t entryIndex)
-         : fProcessor(processor), fNTuples(ntuples), fEntryIndex(entryIndex)
+         : fProcessor(processor),
+           fNTuples(ntuples),
+           fEntryIndex(entryIndex),
+           fProcessorView(entryIndex, processor.fFieldContexts)
       {
       }
 
@@ -178,7 +219,7 @@ public:
             Advance();
 
          fProcessor.LoadEntry(fEntryIndex);
-         return fProcessor.GetEntry();
+         return fProcessorView;
       }
       bool operator!=(const iterator &rh) const { return fEntryIndex != rh.fEntryIndex; }
       bool operator==(const iterator &rh) const { return fEntryIndex == rh.fEntryIndex; }

@@ -184,7 +184,7 @@ TEST(RNTupleProcessor, ChainUnalignedModels)
 
 TEST(RNTupleHorizontalProcessor, Basic)
 {
-   FileRaii fileGuard1("test_ntuple_processor_simple_join1.root");
+   FileRaii fileGuard1("test_ntuple_horizontal_processor_basic1.root");
    {
       auto model = RNTupleModel::Create();
       auto fldI = model->MakeField<int>("i");
@@ -196,7 +196,7 @@ TEST(RNTupleHorizontalProcessor, Basic)
          ntuple->Fill();
       }
    }
-   FileRaii fileGuard2("test_ntuple_processor_simple_join2.root");
+   FileRaii fileGuard2("test_ntuple_horizontal_processor_basic2.root");
    {
       auto model = RNTupleModel::Create();
       auto fldY = model->MakeField<std::vector<float>>("y");
@@ -207,7 +207,7 @@ TEST(RNTupleHorizontalProcessor, Basic)
          ntuple->Fill();
       }
    }
-   FileRaii fileGuard3("test_ntuple_processor_simple_join3.root");
+   FileRaii fileGuard3("test_ntuple_horizontal_processor_basic3.root");
    {
       auto model = RNTupleModel::Create();
       auto fldZ = model->MakeField<std::uint64_t>("z");
@@ -236,15 +236,62 @@ TEST(RNTupleHorizontalProcessor, Basic)
    EXPECT_EQ(model.GetField("ntuple2.y").GetFieldName(), "y");
    EXPECT_EQ(model.GetField("ntuple3.z").GetFieldName(), "z");
 
-   std::shared_ptr<int> fldI;
+   std::shared_ptr<int> i;
    for (auto entry = proc.begin(); entry != proc.end(); ++entry) {
-      fldI = (*entry).GetPtr<int>("i");
-      EXPECT_EQ(static_cast<float>(*fldI), *(*entry).GetPtr<float>("x"));
-      std::vector<float> yExpected = {static_cast<float>(*fldI * 0.2), 3.14, static_cast<float>(*fldI * 1.3)};
-      EXPECT_EQ(yExpected, *(*entry).GetPtr<std::vector<float>>("y"));
-      EXPECT_EQ(static_cast<std::uint64_t>(*fldI * 2), *(*entry).GetPtr<std::uint64_t>("z"));
+      i = (*entry).GetPtr<int>("i");
+      EXPECT_EQ(static_cast<float>(*i), *(*entry).GetPtr<float>("x"));
+      std::vector<float> yExpected = {static_cast<float>(*i * 0.2), 3.14, static_cast<float>(*i * 1.3)};
+      EXPECT_EQ(yExpected, *(*entry).GetPtr<std::vector<float>>("ntuple2.y"));
+      EXPECT_EQ(static_cast<std::uint64_t>(*i * 2), *(*entry).GetPtr<std::uint64_t>("ntuple3.z"));
    }
-   EXPECT_EQ(*fldI, 4);
+   EXPECT_EQ(*i, 4);
+}
+
+TEST(RNTupleHorizontalProcessor, IdenticalFieldNames)
+{
+   FileRaii fileGuard1("test_ntuple_horizontal_processor_field_names1.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldI = model->MakeField<int>("i");
+      auto fldX = model->MakeField<float>("x");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple1", fileGuard1.GetPath());
+
+      for (*fldI = 0; *fldI < 5; ++(*fldI)) {
+         *fldX = static_cast<float>(*fldI);
+         ntuple->Fill();
+      }
+   }
+   FileRaii fileGuard2("test_ntuple_horizontal_processor_field_names2.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldI = model->MakeField<int>("i");
+      auto fldY = model->MakeField<std::vector<float>>("y");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple2", fileGuard2.GetPath());
+
+      for (*fldI = 0; *fldI < 5; ++(*fldI)) {
+         *fldY = {static_cast<float>(*fldI * 0.2), 3.14, static_cast<float>(*fldI * 1.3)};
+         ntuple->Fill();
+      }
+   }
+
+   std::vector<RNTupleSourceSpec> ntuples = {{"ntuple1", fileGuard1.GetPath()}, {"ntuple2", fileGuard2.GetPath()}};
+   RNTupleHorizontalProcessor proc(ntuples);
+   auto &model = proc.GetModel();
+
+   EXPECT_EQ(model.GetField("i").GetFieldName(), "i");
+   EXPECT_EQ(model.GetField("x").GetFieldName(), "x");
+   EXPECT_EQ(model.GetField("ntuple2.i").GetFieldName(), "i");
+   EXPECT_EQ(model.GetField("ntuple2.y").GetFieldName(), "y");
+
+   std::shared_ptr<int> i;
+   for (auto entry = proc.begin(); entry != proc.end(); ++entry) {
+      i = (*entry).GetPtr<int>("i");
+      EXPECT_EQ(*i, *(*entry).GetPtr<int>("ntuple2.i"));
+      EXPECT_EQ(static_cast<float>(*i), *(*entry).GetPtr<float>("x"));
+      std::vector<float> yExpected = {static_cast<float>(*i * 0.2), 3.14, static_cast<float>(*i * 1.3)};
+      EXPECT_EQ(yExpected, *(*entry).GetPtr<std::vector<float>>("ntuple2.y"));
+   }
+   EXPECT_EQ(*i, 4);
 }
 
 // TODO(fdegeus) Add test cases for duplicate field names, mismatched entry numbers

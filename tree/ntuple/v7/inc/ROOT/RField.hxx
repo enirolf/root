@@ -196,6 +196,7 @@ public:
       RValue(RFieldBase *field, std::shared_ptr<void> objPtr) : fField(field), fObjPtr(objPtr) {}
 
    public:
+      RValue() = default;
       RValue(const RValue &) = default;
       RValue &operator=(const RValue &) = default;
       RValue(RValue &&other) = default;

@@ -22,15 +22,8 @@
 
 void ROOT::Experimental::RNTupleHorizontalProcessor::ConnectFields()
 {
-   auto fnConnect = [this](RFieldContext &fieldContext) {
+   for (auto &[_, fieldContext] : fFieldContexts) {
       Internal::CallConnectPageSourceOnField(fieldContext.GetField(), fieldContext.GetPageSource());
-      auto value = fieldContext.GetField().CreateValue();
-      fieldContext.SetValuePtr(value.GetPtr<void>());
-      fEntry->UpdateValue(fieldContext.GetToken(), value);
-   };
-
-   for (auto &fieldContext : fFieldContexts) {
-      fnConnect(fieldContext);
    }
 }
 
@@ -55,8 +48,6 @@ ROOT::Experimental::RNTupleHorizontalProcessor::RNTupleHorizontalProcessor(
       fSecondaryPageSources.push_back(std::move(pageSource));
    }
 
-   fEntry = fModel->CreateBareEntry();
-
    auto fnSetProcessorFields = [this](Internal::RPageSource &pageSource, std::string_view fieldNamePrefix) -> void {
       auto desc = pageSource.GetSharedDescriptorGuard();
 
@@ -66,8 +57,9 @@ ROOT::Experimental::RNTupleHorizontalProcessor::RNTupleHorizontalProcessor(
          if (fieldOrException) {
             auto field = fieldOrException.Unwrap();
             field->SetOnDiskId(fieldDesc.GetId());
-            auto token = fieldNamePrefix.empty() ? fieldDesc.GetFieldName() : fieldNamePrefix;
-            fFieldContexts.emplace_back(std::move(field), pageSource, fEntry->GetToken(token));
+            auto fieldName = fieldNamePrefix.empty() ? fieldDesc.GetFieldName()
+                                                     : std::string(fieldNamePrefix) + "." + fieldDesc.GetFieldName();
+            fFieldContexts.try_emplace(fieldName, std::move(field), pageSource);
          }
       }
    };
