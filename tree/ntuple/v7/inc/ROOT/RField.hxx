@@ -67,6 +67,7 @@ namespace Internal {
 struct RFieldCallbackInjector;
 class RPageSink;
 class RPageSource;
+class RNTupleIndex;
 // TODO(jblomer): find a better way to not have these three methods in the RFieldBase public API
 void CallCommitClusterOnField(RFieldBase &);
 void CallConnectPageSinkOnField(RFieldBase &, RPageSink &, NTupleSize_t firstEntry = 0);
@@ -94,6 +95,7 @@ This is and can only be partially enforced through C++.
 // clang-format on
 class RFieldBase {
    friend class ROOT::Experimental::RCollectionField; // to move the fields from the collection model
+   friend class ROOT::Experimental::Internal::RNTupleIndex;
    friend struct ROOT::Experimental::Internal::RFieldCallbackInjector; // used for unit tests
    friend void Internal::CallCommitClusterOnField(RFieldBase &);
    friend void Internal::CallConnectPageSinkOnField(RFieldBase &, Internal::RPageSink &, NTupleSize_t);
@@ -529,6 +531,8 @@ protected:
    /// Called by `ConnectPageSource()` only once connected; derived classes may override this
    /// as appropriate
    virtual void OnConnectPageSource() {}
+
+   virtual std::uint64_t GetHash(void *from);
 
    /// Factory method to resurrect a field from the stored on-disk type information.  This overload takes an already
    /// normalized type name and type alias
@@ -1874,6 +1878,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) bool(false); }
+   std::uint64_t GetHash(void *from) final { return *static_cast<std::uint64_t *>(from); }
 
 public:
    static std::string TypeName() { return "bool"; }
@@ -1904,6 +1909,9 @@ public:
 
 template <>
 class RField<float> final : public RFieldBase {
+private:
+   std::hash<float> fHashFunc = std::hash<float>();
+
 protected:
    std::unique_ptr<RFieldBase> CloneImpl(std::string_view newName) const final
    {
@@ -1914,6 +1922,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) float(0.0); }
+   std::uint64_t GetHash(void *from) final { return fHashFunc(*static_cast<float *>(from)); }
 
 public:
    static std::string TypeName() { return "float"; }
@@ -1946,6 +1955,9 @@ public:
 
 template <>
 class RField<double> final : public RFieldBase {
+private:
+   std::hash<double> fHashFunc = std::hash<double>();
+
 protected:
    std::unique_ptr<RFieldBase> CloneImpl(std::string_view newName) const final
    {
@@ -1956,6 +1968,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) double(0.0); }
+   std::uint64_t GetHash(void *from) final { return fHashFunc(*static_cast<double *>(from)); }
 
 public:
    static std::string TypeName() { return "double"; }
@@ -1999,6 +2012,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) std::byte{0}; }
+   std::uint64_t GetHash(void *from) final { return *static_cast<std::uint64_t *>(from); }
 
 public:
    static std::string TypeName() { return "std::byte"; }
@@ -2038,6 +2052,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) char(0); }
+   std::uint64_t GetHash(void *from) final { return *static_cast<std::uint64_t *>(from); }
 
 public:
    static std::string TypeName() { return "char"; }
@@ -2078,6 +2093,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) int8_t(0); }
+   std::uint64_t GetHash(void *from) final { return *static_cast<std::uint64_t *>(from); }
 
 public:
    static std::string TypeName() { return "std::int8_t"; }
@@ -2118,6 +2134,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) uint8_t(0); }
+   std::uint64_t GetHash(void *from) final { return *static_cast<std::uint64_t *>(from); }
 
 public:
    static std::string TypeName() { return "std::uint8_t"; }
@@ -2158,6 +2175,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) int16_t(0); }
+   std::uint64_t GetHash(void *from) final { return *static_cast<std::uint64_t *>(from); }
 
 public:
    static std::string TypeName() { return "std::int16_t"; }
@@ -2198,6 +2216,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) int16_t(0); }
+   std::uint64_t GetHash(void *from) final { return *static_cast<std::uint64_t *>(from); }
 
 public:
    static std::string TypeName() { return "std::uint16_t"; }
@@ -2238,6 +2257,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) int32_t(0); }
+   std::uint64_t GetHash(void *from) final { return *static_cast<std::uint64_t *>(from); }
 
 public:
    static std::string TypeName() { return "std::int32_t"; }
@@ -2278,6 +2298,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) uint32_t(0); }
+   std::uint64_t GetHash(void *from) final { return *static_cast<std::uint64_t *>(from); }
 
 public:
    static std::string TypeName() { return "std::uint32_t"; }
@@ -2320,6 +2341,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) uint64_t(0); }
+   std::uint64_t GetHash(void *from) final { return *static_cast<std::uint64_t *>(from); }
 
 public:
    static std::string TypeName() { return "std::uint64_t"; }
@@ -2360,6 +2382,7 @@ protected:
    void GenerateColumnsImpl() final;
    void GenerateColumnsImpl(const RNTupleDescriptor &desc) final;
    void ConstructValue(void *where) const final { new (where) int64_t(0); }
+   std::uint64_t GetHash(void *from) final { return *static_cast<std::uint64_t *>(from); }
 
 public:
    static std::string TypeName() { return "std::int64_t"; }
@@ -2392,6 +2415,7 @@ template <>
 class RField<std::string> final : public RFieldBase {
 private:
    ClusterSize_t fIndex;
+   std::hash<std::string> fHashFunc = std::hash<std::string>();
 
    std::unique_ptr<RFieldBase> CloneImpl(std::string_view newName) const final
    {
@@ -2423,6 +2447,8 @@ public:
    size_t GetValueSize() const final { return sizeof(std::string); }
    size_t GetAlignment() const final { return std::alignment_of<std::string>(); }
    void AcceptVisitor(Detail::RFieldVisitor &visitor) const final;
+
+   std::uint64_t GetHash(void *from) final { return fHashFunc(*static_cast<std::string *>(from)); }
 };
 
 /// TObject requires special handling of the fBits and fUniqueID members
