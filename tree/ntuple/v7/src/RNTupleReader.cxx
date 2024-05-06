@@ -241,22 +241,3 @@ ROOT::Experimental::DescriptorId_t ROOT::Experimental::RNTupleReader::RetrieveFi
    }
    return fieldId;
 }
-
-std::unique_ptr<ROOT::Experimental::Internal::RNTupleIndex>
-ROOT::Experimental::RNTupleReader::CreateIndex(std::string_view fieldName)
-{
-   using Internal::RNTupleIndex;
-
-   const RFieldBase &field = GetModel().GetField(fieldName);
-
-   RNTupleIndex index(field.Clone(fieldName));
-   auto entry = GetModel().CreateEntry();
-   auto ptr = entry->GetPtr<void>(entry->GetToken(fieldName));
-
-   for (std::uint64_t i = 0; i < GetNEntries(); ++i) {
-      LoadEntry(i, *entry);
-      index.Add(ptr.get(), i);
-   }
-
-   return std::unique_ptr<RNTupleIndex>(new RNTupleIndex(index));
-}

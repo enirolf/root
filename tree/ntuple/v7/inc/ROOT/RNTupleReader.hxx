@@ -338,15 +338,6 @@ public:
    /// ~~~
    void EnableMetrics() { fMetrics.Enable(); }
    const Detail::RNTupleMetrics &GetMetrics() const { return fMetrics; }
-
-   /// Create an RNTupleIndex based on a given field name
-   ///
-   /// \param[in] fieldName The name of the field for which to create the index
-   /// \return A pointer to the newly created index
-   ///
-   /// \note Building the index can be sped up significantly by enabling implicit multithreading
-   /// (`ROOT::EnableImplicitMT()`).
-   std::unique_ptr<Internal::RNTupleIndex> CreateIndex(std::string_view fieldName);
 }; // class RNTupleReader
 
 } // namespace Experimental
