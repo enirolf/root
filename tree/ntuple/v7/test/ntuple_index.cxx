@@ -121,3 +121,41 @@ TEST(RNTupleIndex, MultipleFields)
    auto idx2 = index->GetEntryIndex<std::uint64_t, std::uint64_t>(1, 2);
    EXPECT_NE(idx1, idx2);
 }
+
+TEST(RNTupleIndex, MultipleMatches)
+{
+   FileRaii fileGuard("test_ntuple_index_multiple_fields.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldRun = model->MakeField<std::uint64_t>("run");
+
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard.GetPath());
+
+      *fldRun = 1;
+      for (int i = 0; i < 10; ++i) {
+         if (i > 4)
+            *fldRun = 2;
+         if (i > 7)
+            *fldRun = 3;
+         ntuple->Fill();
+      }
+   }
+
+   auto pageSource = RPageSource::Create("ntuple", fileGuard.GetPath());
+   pageSource->Attach();
+
+   auto index = ROOT::Experimental::Internal::CreateRNTupleIndex({"run"}, *pageSource);
+
+   auto entryIdxs = index->GetEntryIndices<std::uint64_t>(1);
+   auto expected = std::vector<std::uint64_t>{0, 1, 2, 3, 4};
+   EXPECT_EQ(expected, entryIdxs);
+   entryIdxs = index->GetEntryIndices<std::uint64_t>(2);
+   expected = {5, 6, 7};
+   EXPECT_EQ(expected, entryIdxs);
+   entryIdxs = index->GetEntryIndices<std::uint64_t>(3);
+   expected = {8, 9};
+   EXPECT_EQ(expected, entryIdxs);
+   entryIdxs = index->GetEntryIndices<std::uint64_t>(4);
+   expected = {};
+   EXPECT_EQ(expected, entryIdxs);
+}

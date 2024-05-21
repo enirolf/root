@@ -50,7 +50,7 @@ private:
    };
 
    std::vector<std::unique_ptr<RFieldBase>> fFields;
-   std::unordered_map<NTupleIndexValue_t, std::set<NTupleSize_t>> fIndex;
+   std::unordered_map<NTupleIndexValue_t, std::vector<NTupleSize_t>> fIndex;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Create an RNTupleIndex for an existing RNTuple.
@@ -69,24 +69,25 @@ public:
 
    std::size_t GetNElems() const { return fIndex.size(); }
 
-   void Add(std::vector<void *> objPtrs, NTupleSize_t entry);
+   void Add(std::vector<void *> valuePtrs, NTupleSize_t entry);
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Get the entry number containing the given index value **after** the provided minimum entry.
+   /// \brief Get the entry number containing the given index value.
    ///
    /// \param[in] value The indexed value
-   /// \param[in] lowerBound The minimum entry number (inclusive) to retrieve. By default, all entries are considered.
-   /// \return The entry number, starting from `lowerBound`, containing the specified index value. When no such entry
-   /// exists, return `kInvalidNTupleIndex`
-   // NTupleSize_t GetEntryIndex(void *valuePtr, NTupleSize_t lowerBound = 0) const;
-   NTupleSize_t GetEntryIndex(std::vector<void *> objPtrs, NTupleSize_t lowerBound = 0) const;
+   /// \return The entry number, containing the specified index value. When no such entry exists, return
+   /// `kInvalidNTupleIndex`
+   ///
+   /// Note that in case multiple entries corresponding to the provided index value exist, the first occurrence is
+   /// returned. Use RNTupleIndex::GetEntryIndices to get all entries.
+   NTupleSize_t GetEntryIndex(std::vector<void *> valuePtrs) const;
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Get the entry number containing the given index value **after** the provided minimum entry.
+   /// \brief Get the entry number containing the given index value.
    ///
-   /// \sa GetEntry(void *valuePtr, NTupleSize_t lowerBound = 0)
+   /// \sa GetEntryIndex(std::vector<void *> valuePtrs)
    template <typename... Ts>
-   NTupleSize_t GetEntryIndex(Ts... values, NTupleSize_t lowerBound = 0) const
+   NTupleSize_t GetEntryIndex(Ts... values) const
    {
       if (sizeof...(Ts) != fFields.size())
          throw RException(R__FAIL("number of value pointers must match number of indexed fields"));
@@ -94,7 +95,30 @@ public:
       std::vector<void *> valuePtrs;
       ([&] { valuePtrs.push_back(&values); }(), ...);
 
-      return GetEntryIndex(valuePtrs, lowerBound);
+      return GetEntryIndex(valuePtrs);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Get all entry numbers for the given index.
+   ///
+   /// \param[in] value The indexed value
+   /// \return The entry numbers containing the specified index value. When no entries exists, return an empty vector.
+   std::vector<NTupleSize_t> GetEntryIndices(std::vector<void *> valuePtrs) const;
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Get all entry numbers for the given index.
+   ///
+   /// \sa GetEntryIndices(std::vector<void *> valuePtrs)
+   template <typename... Ts>
+   std::vector<NTupleSize_t> GetEntryIndices(Ts... values) const
+   {
+      if (sizeof...(Ts) != fFields.size())
+         throw RException(R__FAIL("number of value pointers must match number of indexed fields"));
+
+      std::vector<void *> valuePtrs;
+      ([&] { valuePtrs.push_back(&values); }(), ...);
+
+      return GetEntryIndices(valuePtrs);
    }
 };
 

@@ -34,33 +34,36 @@ ROOT::Experimental::Internal::RNTupleIndex::RNTupleIndex(std::vector<std::unique
    }
 }
 
-void ROOT::Experimental::Internal::RNTupleIndex::Add(std::vector<void *> objPtrs, NTupleSize_t entry)
+void ROOT::Experimental::Internal::RNTupleIndex::Add(std::vector<void *> valuePtrs, NTupleSize_t entry)
 {
    RIndexValue indexValue;
    for (unsigned i = 0; i < fFields.size(); ++i) {
-      indexValue += fFields[i]->GetHash(objPtrs[i]);
+      indexValue += fFields[i]->GetHash(valuePtrs[i]);
    }
-   fIndex[indexValue.fValue].insert(entry);
+   fIndex[indexValue.fValue].push_back(entry);
 }
 
 ROOT::Experimental::NTupleSize_t
-ROOT::Experimental::Internal::RNTupleIndex::GetEntryIndex(std::vector<void *> valuePtrs, NTupleSize_t lowerBound) const
+ROOT::Experimental::Internal::RNTupleIndex::GetEntryIndex(std::vector<void *> valuePtrs) const
+{
+   auto entryIndices = GetEntryIndices(valuePtrs);
+   if (entryIndices.empty())
+      return kInvalidNTupleIndex;
+   return entryIndices.front();
+}
+
+std::vector<ROOT::Experimental::NTupleSize_t>
+ROOT::Experimental::Internal::RNTupleIndex::GetEntryIndices(std::vector<void *> valuePtrs) const
 {
    RIndexValue indexValue;
    for (unsigned i = 0; i < fFields.size(); ++i) {
       indexValue += fFields[i]->GetHash(valuePtrs[i]);
    }
 
-   if (!fIndex.count(indexValue.fValue)) {
-      return kInvalidNTupleIndex;
-   }
+   if (!fIndex.count(indexValue.fValue))
+      return {};
 
-   auto indexEntries = fIndex.at(indexValue.fValue);
-
-   if (auto entry = indexEntries.lower_bound(lowerBound); entry != indexEntries.end())
-      return *entry;
-
-   return kInvalidNTupleIndex;
+   return fIndex.at(indexValue.fValue);
 }
 
 //------------------------------------------------------------------------------
