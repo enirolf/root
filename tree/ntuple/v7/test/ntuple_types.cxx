@@ -29,6 +29,33 @@ TEST(RNTuple, TypeName) {
       (ROOT::Experimental::RField<std::tuple<std::tuple<char, CustomStruct, char>, int>>::TypeName().c_str()));
 }
 
+TEST(RNTuple, LongLong)
+{
+   auto fldLong64 = RField<Long64_t>("Long64_t");
+   auto fldLongLong = RField<long long>("long long");
+   EXPECT_EQ(sizeof(Long64_t), fldLong64.GetValueSize());
+   EXPECT_EQ(fldLong64.GetValueSize(), fldLongLong.GetValueSize());
+   EXPECT_EQ(fldLong64.GetTypeName(), fldLongLong.GetTypeName());
+
+   auto fldULong64 = RField<ULong64_t>("ULong64_t");
+   auto fldULongLong = RField<unsigned long long>("unsigned long long");
+   EXPECT_EQ(sizeof(ULong64_t), fldULong64.GetValueSize());
+   EXPECT_EQ(fldULong64.GetValueSize(), fldULongLong.GetValueSize());
+   EXPECT_EQ(fldULong64.GetTypeName(), fldULongLong.GetTypeName());
+
+   auto fldBaseLong64 = RFieldBase::Create("Long64_t", "Long64_t").Unwrap();
+   auto fldBaseLongLong = RFieldBase::Create("long long", "long long").Unwrap();
+   EXPECT_EQ(sizeof(Long64_t), fldBaseLong64->GetValueSize());
+   EXPECT_EQ(fldBaseLong64->GetValueSize(), fldBaseLongLong->GetValueSize());
+   EXPECT_EQ(fldBaseLong64->GetTypeName(), fldBaseLongLong->GetTypeName());
+
+   auto fldBaseULong64 = RFieldBase::Create("ULong64_t", "ULong64_t").Unwrap();
+   auto fldBaseULongLong = RFieldBase::Create("unsigned long long", "unsigned long long").Unwrap();
+   EXPECT_EQ(sizeof(ULong64_t), fldBaseULong64->GetValueSize());
+   EXPECT_EQ(fldBaseULong64->GetValueSize(), fldBaseULongLong->GetValueSize());
+   EXPECT_EQ(fldBaseULong64->GetTypeName(), fldBaseULongLong->GetTypeName());
+}
+
 TEST(RNTuple, EnumBasics)
 {
    // Needs fix of TEnum
