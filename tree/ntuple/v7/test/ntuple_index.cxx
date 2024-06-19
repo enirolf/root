@@ -17,6 +17,7 @@ TEST(RNTupleIndex, Basic)
 
    auto pageSource = RPageSource::Create("ntuple", fileGuard.GetPath());
    auto index = ROOT::Experimental::Internal::CreateRNTupleIndex({"fld"}, *pageSource);
+   EXPECT_TRUE(index->IsFrozen());
 
    auto ntuple = RNTupleReader::Open("ntuple", fileGuard.GetPath());
    auto fld = ntuple->GetView<std::uint64_t>("fld");

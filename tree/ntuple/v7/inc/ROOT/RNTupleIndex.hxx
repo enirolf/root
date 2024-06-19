@@ -36,10 +36,7 @@ namespace Internal {
 */
 // clang-format on
 class RNTupleIndex {
-   friend std::unique_ptr<RNTupleIndex>
-   CreateRNTupleIndex(std::vector<std::string_view> fieldNames, RPageSource &pageSource);
-
-private:
+protected:
    /////////////////////////////////////////////////////////////////////////////
    /// Container for the combined hash of the indexed fields. Uses the implementation from `boost::hash_combine` (see
    /// https://www.boost.org/doc/libs/1_55_0/doc/html/hash/reference.html#boost.hash_combine).
@@ -50,7 +47,7 @@ private:
    };
 
    std::vector<std::unique_ptr<RFieldBase>> fFields;
-   std::unordered_map<NTupleIndexValue_t, std::vector<NTupleSize_t>> fIndex;
+   bool fIsFrozen;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Create an RNTupleIndex for an existing RNTuple.
@@ -59,17 +56,24 @@ private:
    /// \param[in] The page source of the RNTuple to build the index for.
    ///
    /// \note The page source is assumed be attached already.
-   RNTupleIndex(std::vector<std::unique_ptr<RFieldBase>> fields, RPageSource &pageSource);
+   RNTupleIndex(std::vector<std::unique_ptr<RFieldBase>> fields) : fFields(std::move(fields)) {}
+
+   virtual void AddEntry(std::vector<RFieldBase::RValue> &values, NTupleSize_t entryIdx) = 0;
 
 public:
    RNTupleIndex(const RNTupleIndex &other) = delete;
    RNTupleIndex &operator=(const RNTupleIndex &other) = delete;
    RNTupleIndex(RNTupleIndex &&other) = delete;
    RNTupleIndex &operator=(RNTupleIndex &&other) = delete;
+   virtual ~RNTupleIndex() = default;
 
-   std::size_t GetNElems() const { return fIndex.size(); }
+   bool IsFrozen() const { return fIsFrozen; }
+   void Freeze() { fIsFrozen = true; }
+   void Unfreeze() { fIsFrozen = false; }
 
-   void Add(std::vector<void *> valuePtrs, NTupleSize_t entry);
+   virtual void Build(NTupleSize_t firstEntry, NTupleSize_t lastEntry) = 0;
+
+   virtual std::size_t GetNElems() const = 0;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Get the entry number containing the given index value.
@@ -80,7 +84,7 @@ public:
    ///
    /// Note that in case multiple entries corresponding to the provided index value exist, the first occurrence is
    /// returned. Use RNTupleIndex::GetEntryIndices to get all entries.
-   NTupleSize_t GetEntryIndex(std::vector<void *> valuePtrs) const;
+   virtual NTupleSize_t GetEntryIndex(std::vector<void *> valuePtrs) const = 0;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Get the entry number containing the given index value.
@@ -103,7 +107,7 @@ public:
    ///
    /// \param[in] value The indexed value
    /// \return The entry numbers containing the specified index value. When no entries exists, return an empty vector.
-   std::vector<NTupleSize_t> GetEntryIndices(std::vector<void *> valuePtrs) const;
+   virtual std::vector<NTupleSize_t> GetEntryIndices(std::vector<void *> valuePtrs) const = 0;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Get all entry numbers for the given index.
@@ -120,6 +124,61 @@ public:
 
       return GetEntryIndices(valuePtrs);
    }
+};
+
+// clang-format off
+/**
+\class ROOT::Experimental::Internal::RNTupleIndexHash
+\ingroup NTuple
+\brief Build an index for an RNTuple so it can be joined onto other RNTuples.
+*/
+// clang-format on
+class RNTupleIndexHash : public RNTupleIndex {
+   friend std::unique_ptr<RNTupleIndex>
+   CreateRNTupleIndex(std::vector<std::string_view> fieldNames, RPageSource &pageSource);
+
+private:
+   std::unordered_map<NTupleIndexValue_t, std::vector<NTupleSize_t>> fIndex;
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Create an RNTupleIndexHash for an existing RNTuple.
+   ///
+   /// \param[in] The fields that will make up the index.
+   /// \param[in] The page source of the RNTuple to build the index for.
+   ///
+   /// \note The page source is assumed be attached already.
+   RNTupleIndexHash(std::vector<std::unique_ptr<RFieldBase>> fields) : RNTupleIndex(std::move(fields)) {}
+
+   void AddEntry(std::vector<RFieldBase::RValue> &values, NTupleSize_t entryIdx) final;
+
+public:
+   RNTupleIndexHash(const RNTupleIndexHash &other) = delete;
+   RNTupleIndexHash &operator=(const RNTupleIndexHash &other) = delete;
+   RNTupleIndexHash(RNTupleIndexHash &&other) = delete;
+   RNTupleIndexHash &operator=(RNTupleIndexHash &&other) = delete;
+   ~RNTupleIndexHash() override = default;
+
+   void Build(NTupleSize_t firstEntry, NTupleSize_t lastEntry) final;
+
+   std::size_t GetNElems() const final { return fIndex.size(); }
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Get the entry number containing the given index value.
+   ///
+   /// \param[in] value The indexed value
+   /// \return The entry number, containing the specified index value. When no such entry exists, return
+   /// `kInvalidNTupleIndex`
+   ///
+   /// Note that in case multiple entries corresponding to the provided index value exist, the first occurrence is
+   /// returned. Use RNTupleIndexHash::GetEntryIndices to get all entries.
+   NTupleSize_t GetEntryIndex(std::vector<void *> valuePtrs) const final;
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Get all entry numbers for the given index.
+   ///
+   /// \param[in] value The indexed value
+   /// \return The entry numbers containing the specified index value. When no entries exists, return an empty vector.
+   std::vector<NTupleSize_t> GetEntryIndices(std::vector<void *> valuePtrs) const final;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,36 +15,35 @@
 
 #include <ROOT/RNTupleIndex.hxx>
 
-ROOT::Experimental::Internal::RNTupleIndex::RNTupleIndex(std::vector<std::unique_ptr<RFieldBase>> fields,
-                                                         RPageSource &pageSource)
-   : fFields(std::move(fields))
+void ROOT::Experimental::Internal::RNTupleIndexHash::Build(NTupleSize_t firstEntry, NTupleSize_t lastEntry)
 {
    std::vector<RFieldBase::RValue> fieldValues;
    for (const auto &field : fFields) {
       fieldValues.emplace_back(field->CreateValue());
    }
 
-   for (std::uint64_t i = 0; i < pageSource.GetNEntries(); ++i) {
-      std::vector<void *> ptrs;
+   for (std::uint64_t i = firstEntry; i < lastEntry; ++i) {
       for (auto &fieldValue : fieldValues) {
          fieldValue.Read(i);
-         ptrs.push_back(fieldValue.GetPtr<void>().get());
       }
-      Add(ptrs, i);
+      AddEntry(fieldValues, i);
    }
+
+   Freeze();
 }
 
-void ROOT::Experimental::Internal::RNTupleIndex::Add(std::vector<void *> valuePtrs, NTupleSize_t entry)
+void ROOT::Experimental::Internal::RNTupleIndexHash::AddEntry(std::vector<RFieldBase::RValue> &values,
+                                                              NTupleSize_t entryIdx)
 {
    RIndexValue indexValue;
    for (unsigned i = 0; i < fFields.size(); ++i) {
-      indexValue += fFields[i]->GetHash(valuePtrs[i]);
+      indexValue += fFields[i]->GetHash(values[i].GetPtr<void>().get());
    }
-   fIndex[indexValue.fValue].push_back(entry);
+   fIndex[indexValue.fValue].push_back(entryIdx);
 }
 
 ROOT::Experimental::NTupleSize_t
-ROOT::Experimental::Internal::RNTupleIndex::GetEntryIndex(std::vector<void *> valuePtrs) const
+ROOT::Experimental::Internal::RNTupleIndexHash::GetEntryIndex(std::vector<void *> valuePtrs) const
 {
    auto entryIndices = GetEntryIndices(valuePtrs);
    if (entryIndices.empty())
@@ -53,8 +52,10 @@ ROOT::Experimental::Internal::RNTupleIndex::GetEntryIndex(std::vector<void *> va
 }
 
 std::vector<ROOT::Experimental::NTupleSize_t>
-ROOT::Experimental::Internal::RNTupleIndex::GetEntryIndices(std::vector<void *> valuePtrs) const
+ROOT::Experimental::Internal::RNTupleIndexHash::GetEntryIndices(std::vector<void *> valuePtrs) const
 {
+   // TODO(fdegeus) make proper std::hash function
+   // and more
    RIndexValue indexValue;
    for (unsigned i = 0; i < fFields.size(); ++i) {
       indexValue += fFields[i]->GetHash(valuePtrs[i]);
@@ -65,8 +66,6 @@ ROOT::Experimental::Internal::RNTupleIndex::GetEntryIndices(std::vector<void *> 
 
    return fIndex.at(indexValue.fValue);
 }
-
-//------------------------------------------------------------------------------
 
 std::unique_ptr<ROOT::Experimental::Internal::RNTupleIndex>
 ROOT::Experimental::Internal::CreateRNTupleIndex(std::vector<std::string_view> fieldNames, RPageSource &pageSource)
@@ -94,5 +93,8 @@ ROOT::Experimental::Internal::CreateRNTupleIndex(std::vector<std::string_view> f
       fields.push_back(std::move(field));
    }
 
-   return std::unique_ptr<RNTupleIndex>(new RNTupleIndex(std::move(fields), pageSource));
+   auto index = std::unique_ptr<RNTupleIndexHash>(new RNTupleIndexHash(std::move(fields)));
+   index->Build(0, pageSource.GetNEntries());
+   index->Freeze();
+   return index;
 }
