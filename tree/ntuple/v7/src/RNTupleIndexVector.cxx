@@ -1,4 +1,4 @@
-/// \file RNTupleIndex.cxx
+/// \file RNTupleIndexVector.cxx
 /// \ingroup NTuple ROOT7
 /// \author Florine de Geus <florine.de.geus@cern.ch>
 /// \date 2024-04-02
@@ -13,61 +13,7 @@
  * For the list of contributors see $ROOTSYS/README/CREDITS.             *
  *************************************************************************/
 
-#include <ROOT/RNTupleIndex.hxx>
-
-void ROOT::Experimental::Internal::RNTupleIndexHash::Build(NTupleSize_t firstEntry, NTupleSize_t lastEntry)
-{
-   std::vector<RFieldBase::RValue> fieldValues;
-   for (const auto &field : fFields) {
-      fieldValues.emplace_back(field->CreateValue());
-   }
-
-   for (std::uint64_t i = firstEntry; i < lastEntry; ++i) {
-      for (auto &fieldValue : fieldValues) {
-         fieldValue.Read(i);
-      }
-      AddEntry(fieldValues, i);
-   }
-
-   Freeze();
-}
-
-void ROOT::Experimental::Internal::RNTupleIndexHash::AddEntry(std::vector<RFieldBase::RValue> &values,
-                                                              NTupleSize_t entryIdx)
-{
-   RIndexValue indexValue;
-   for (unsigned i = 0; i < fFields.size(); ++i) {
-      indexValue += fFields[i]->GetHash(values[i].GetPtr<void>().get());
-   }
-   fIndex[indexValue.fValue].push_back(entryIdx);
-}
-
-ROOT::Experimental::NTupleSize_t
-ROOT::Experimental::Internal::RNTupleIndexHash::GetEntryIndex(std::vector<void *> valuePtrs) const
-{
-   auto entryIndices = GetEntryIndices(valuePtrs);
-   if (entryIndices.empty())
-      return kInvalidNTupleIndex;
-   return entryIndices.front();
-}
-
-std::vector<ROOT::Experimental::NTupleSize_t>
-ROOT::Experimental::Internal::RNTupleIndexHash::GetEntryIndices(std::vector<void *> valuePtrs) const
-{
-   // TODO(fdegeus) make proper std::hash function
-   // and more
-   RIndexValue indexValue;
-   for (unsigned i = 0; i < fFields.size(); ++i) {
-      indexValue += fFields[i]->GetHash(valuePtrs[i]);
-   }
-
-   if (!fIndex.count(indexValue.fValue))
-      return {};
-
-   return fIndex.at(indexValue.fValue);
-}
-
-// ---------------------------------------------------------------------------------------------------------------------
+#include <ROOT/RNTupleIndexVector.hxx>
 
 void ROOT::Experimental::Internal::RNTupleIndexVector::Build(NTupleSize_t firstEntry, NTupleSize_t lastEntry)
 {
@@ -97,15 +43,10 @@ void ROOT::Experimental::Internal::RNTupleIndexVector::AddEntry(std::vector<RFie
       indexValue += fFields[i]->GetHash(values[i].GetPtr<void>().get());
    }
 
-   if (fIndexValues.empty() || (fIndexValues.size() > 0 && indexValue.fValue >= fIndexValues.back())) {
-      fIndexValues.push_back(indexValue.fValue);
-      fEntryIndices.push_back(entryIdx);
-   } else {
-      auto pos = std::distance(fIndexValues.cbegin(),
-                               std::upper_bound(fIndexValues.cbegin(), fIndexValues.cend(), indexValue.fValue));
-      fIndexValues.insert(fIndexValues.cbegin() + pos, indexValue.fValue);
-      fEntryIndices.insert(fEntryIndices.cbegin() + pos, entryIdx);
-   }
+   // TODO(fdegeus) cache last indexvalue and compare
+   auto pos = std::upper_bound(fIndexValues.cbegin(), fIndexValues.cend(), indexValue.fValue);
+   fIndexValues.insert(pos, indexValue.fValue);
+   fEntryIndices.insert(pos, entryIdx);
 }
 
 ROOT::Experimental::NTupleSize_t
@@ -118,10 +59,10 @@ ROOT::Experimental::Internal::RNTupleIndexVector::GetEntryIndex(std::vector<void
 
    auto entryIdx = std::lower_bound(fIndexValues.cbegin(), fIndexValues.cend(), indexValue.fValue);
 
-   if (*entryIdx != indexValue.fValue)
+   if (entryIdx == fIndexValues.cend())
       return kInvalidNTupleIndex;
 
-   return fEntryIndices.at(std::distance(fIndexValues.cbegin(), entryIdx));
+   return fEntryIndices.at(*entryIdx);
 }
 
 std::vector<ROOT::Experimental::NTupleSize_t>

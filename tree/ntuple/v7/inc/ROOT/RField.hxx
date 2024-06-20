@@ -68,6 +68,7 @@ struct RFieldCallbackInjector;
 class RPageSink;
 class RPageSource;
 class RNTupleIndexHash;
+class RNTupleIndexVector;
 // TODO(jblomer): find a better way to not have these three methods in the RFieldBase public API
 void CallCommitClusterOnField(RFieldBase &);
 void CallConnectPageSinkOnField(RFieldBase &, RPageSink &, NTupleSize_t firstEntry = 0);
@@ -96,6 +97,7 @@ This is and can only be partially enforced through C++.
 class RFieldBase {
    friend class ROOT::Experimental::RCollectionField; // to move the fields from the collection model
    friend class ROOT::Experimental::Internal::RNTupleIndexHash;
+   friend class ROOT::Experimental::Internal::RNTupleIndexVector;
    friend struct ROOT::Experimental::Internal::RFieldCallbackInjector; // used for unit tests
    friend void Internal::CallCommitClusterOnField(RFieldBase &);
    friend void Internal::CallConnectPageSinkOnField(RFieldBase &, Internal::RPageSink &, NTupleSize_t);
