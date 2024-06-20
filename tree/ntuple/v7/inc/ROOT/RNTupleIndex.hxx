@@ -186,6 +186,7 @@ class RNTupleIndexHash : public RNTupleIndex {
 
 private:
    std::unordered_map<NTupleIndexValue_t, std::vector<NTupleSize_t>> fIndex;
+   std::size_t fNElems = 0;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Create an RNTupleIndexHash for an existing RNTuple.
@@ -207,7 +208,7 @@ public:
 
    void Build(NTupleSize_t firstEntry, NTupleSize_t lastEntry) final;
 
-   std::size_t GetNElems() const final { return fIndex.size(); }
+   std::size_t GetNElems() const final { return fNElems; }
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Get the entry number containing the given index value.

@@ -51,7 +51,7 @@ TYPED_TEST(RNTupleIndexTest, Unordered)
 {
    using ThisIndexImpl_t = typename TestFixture::IndexImpl_t;
 
-   FileRaii fileGuard("test_ntuple_index_from_page_source.root");
+   FileRaii fileGuard("test_ntuple_index_unordered.root");
    {
       auto model = RNTupleModel::Create();
       auto fld = model->MakeField<std::uint64_t>("fld");
@@ -165,6 +165,7 @@ TYPED_TEST(RNTupleIndexTest, MultipleFields)
    pageSource->Attach();
 
    auto index = ROOT::Experimental::Internal::CreateRNTupleIndex<ThisIndexImpl_t>({"run", "event"}, *pageSource);
+   EXPECT_EQ(pageSource->GetNEntries(), index->GetNElems());
 
    auto ntuple = RNTupleReader::Open("ntuple", fileGuard.GetPath());
    auto fld = ntuple->GetView<float>("x");
@@ -207,6 +208,7 @@ TYPED_TEST(RNTupleIndexTest, MultipleMatches)
    pageSource->Attach();
 
    auto index = ROOT::Experimental::Internal::CreateRNTupleIndex<ThisIndexImpl_t>({"run"}, *pageSource);
+   EXPECT_EQ(pageSource->GetNEntries(), index->GetNElems());
 
    auto entryIdxs = index->template GetEntryIndices<std::uint64_t>(1);
    auto expected = std::vector<std::uint64_t>{0, 1, 2, 3, 4};

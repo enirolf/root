@@ -17,6 +17,7 @@
 
 void ROOT::Experimental::Internal::RNTupleIndexHash::Build(NTupleSize_t firstEntry, NTupleSize_t lastEntry)
 {
+   fNElems = lastEntry - firstEntry;
    std::vector<RFieldBase::RValue> fieldValues;
    for (const auto &field : fFields) {
       fieldValues.emplace_back(field->CreateValue());
@@ -55,7 +56,6 @@ std::vector<ROOT::Experimental::NTupleSize_t>
 ROOT::Experimental::Internal::RNTupleIndexHash::GetEntryIndices(std::vector<void *> valuePtrs) const
 {
    // TODO(fdegeus) make proper std::hash function
-   // and more
    RIndexValue indexValue;
    for (unsigned i = 0; i < fFields.size(); ++i) {
       indexValue += fFields[i]->GetHash(valuePtrs[i]);
