@@ -5,7 +5,6 @@
 using ROOT::Experimental::RNTupleModel;
 using ROOT::Experimental::RNTupleWriter;
 using ROOT::Experimental::Internal::RNTupleJoinProcessor;
-using ROOT::Experimental::Internal::RNTupleProcessor;
 using ROOT::Experimental::Internal::RNTupleSourceSpec;
 
 TEST(RNTupleJoinProcessor, Basic)
@@ -118,4 +117,47 @@ TEST(RNTupleJoinProcessor, IdenticalFieldNames)
       EXPECT_EQ(yExpected, *entry.GetPtr<std::vector<float>>("ntuple2.y"));
    }
    EXPECT_EQ(*i, 4);
+}
+
+TEST(RNTupleJoinProcessor, UnalignedBasic)
+{
+   FileRaii fileGuard1("test_ntuple_join_processor_unaligned_basic1.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldI = model->MakeField<int>("i");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple1", fileGuard1.GetPath());
+
+      for (*fldI = 0; *fldI < 5; ++(*fldI)) {
+         ntuple->Fill();
+      }
+   }
+   FileRaii fileGuard2("test_ntuple_join_processor_unaligned_basic2.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldI = model->MakeField<int>("i");
+      auto fldY = model->MakeField<float>("y");
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple2", fileGuard2.GetPath());
+
+      for (*fldI = 0; *fldI < 5; ++(*fldI)) {
+         if (*fldI % 2 == 1) {
+            *fldY = static_cast<float>(*fldI * 0.2);
+            ntuple->Fill();
+         }
+      }
+   }
+
+   std::vector<RNTupleSourceSpec> ntuples = {{"ntuple1", fileGuard1.GetPath()}, {"ntuple2", fileGuard2.GetPath()}};
+   RNTupleJoinProcessor processor(ntuples, {"i"});
+
+   auto i = processor.GetPtr<int>("i");
+   auto y = processor.GetPtr<float>("ntuple2.y");
+   for (auto &entry : processor) {
+      std::cout << entry.GetEntryIndex() << std::endl;
+
+      if (*i % 2 == 1) {
+         EXPECT_FLOAT_EQ(static_cast<float>(*i * 0.2), *y);
+      } else {
+         EXPECT_EQ(0., *y);
+      }
+   }
 }

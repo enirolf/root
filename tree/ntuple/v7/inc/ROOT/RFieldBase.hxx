@@ -39,6 +39,7 @@ struct RFieldCallbackInjector;
 struct RFieldRepresentationModifier;
 class RPageSink;
 class RPageSource;
+class RNTupleJoinProcessor;
 // TODO(jblomer): find a better way to not have these three methods in the RFieldBase public API
 void CallCommitClusterOnField(RFieldBase &);
 void CallConnectPageSinkOnField(RFieldBase &, RPageSink &, NTupleSize_t firstEntry = 0);
@@ -66,6 +67,7 @@ This is and can only be partially enforced through C++.
 // clang-format on
 class RFieldBase {
    friend class ROOT::Experimental::RCollectionField;                  // to move the fields from the collection model
+   friend class ROOT::Experimental::Internal::RNTupleJoinProcessor;
    friend struct ROOT::Experimental::Internal::RFieldCallbackInjector; // used for unit tests
    friend struct ROOT::Experimental::Internal::RFieldRepresentationModifier; // used for unit tests
    friend void Internal::CallCommitClusterOnField(RFieldBase &);

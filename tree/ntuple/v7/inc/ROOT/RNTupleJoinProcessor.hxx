@@ -19,6 +19,7 @@
 #include <ROOT/RError.hxx>
 #include <ROOT/RField.hxx>
 #include <ROOT/RNTupleDescriptor.hxx>
+#include <ROOT/RNTupleIndex.hxx>
 #include <ROOT/RPageStorage.hxx>
 
 #include <memory>
@@ -74,8 +75,11 @@ private:
    };
 
    const std::vector<RNTupleSourceSpec> &fNTuples;
+   std::vector<std::string> fIndexFieldNames;
+
    std::unique_ptr<Internal::RPageSource> fPrimaryPageSource;
    std::unordered_map<std::string, std::unique_ptr<Internal::RPageSource>> fSecondaryPageSources;
+   std::unordered_map<std::string, std::unique_ptr<RNTupleIndex>> fJoinIndices;
    std::unordered_map<std::string, RFieldContext> fFieldContexts;
 
    /////////////////////////////////////////////////////////////////////////////
@@ -97,7 +101,7 @@ private:
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Creates and connects a concrete field to the current page source, based on its protofield.
-   void ConnectField(std::string_view fieldName);
+   void ConnectField(RFieldContext &fieldContext);
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Add a field to be read by the processor.
@@ -111,7 +115,7 @@ private:
    /// \param[in] fieldName The name of the field to check.
    ///
    /// \return Whether the field with the given name is activated.
-   bool HasField(std::string_view fieldName) { return fFieldContexts.count(std::string(fieldName)) > 0; }
+   bool HasField(std::string_view fieldName) const { return fFieldContexts.count(std::string(fieldName)) > 0; }
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Loads an entry.
@@ -119,8 +123,30 @@ private:
    /// \param[in] idx The index (local to the current RNTuple) of the entry to load.
    void LoadEntry(NTupleSize_t idx)
    {
-      for (auto &[_, fieldContext] : fFieldContexts) {
+      std::vector<void *> valPtrs;
+      valPtrs.reserve(fIndexFieldNames.size());
+      for (const auto &fieldName : fIndexFieldNames) {
+         auto &fieldContext = fFieldContexts.at(fieldName);
          fieldContext.fValue->Read(idx);
+         valPtrs.push_back(fieldContext.fValue->GetPtr<void>().get());
+      }
+
+      for (auto &[fieldName, fieldContext] : fFieldContexts) {
+         if (std::find(fIndexFieldNames.cbegin(), fIndexFieldNames.cend(), fieldName) != fIndexFieldNames.end())
+            continue;
+
+         auto ntupleName = fieldContext.fPageSource.GetNTupleName();
+         if (fJoinIndices.find(ntupleName) != fJoinIndices.end()) {
+            auto joinIdx = fJoinIndices.at(ntupleName)->GetFirstEntryNumber(valPtrs);
+
+            if (joinIdx == kInvalidNTupleIndex) {
+               fieldContext.fProtoField->ConstructValue(fieldContext.fValue->GetPtr<void>().get());
+            } else {
+               fieldContext.fValue->Read(joinIdx);
+            }
+         } else {
+            fieldContext.fValue->Read(idx);
+         }
       }
    }
 
@@ -216,6 +242,7 @@ public:
    };
 
    RNTupleJoinProcessor(const std::vector<RNTupleSourceSpec> &ntuples);
+   RNTupleJoinProcessor(const std::vector<RNTupleSourceSpec> &ntuples, const std::vector<std::string> &indexFields);
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Returns the names of the fields currently actively being processed.
