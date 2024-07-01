@@ -33,9 +33,48 @@ CastValuePtr(void *valuePtr, const ROOT::Experimental::RFieldBase &field)
 }
 } // anonymous namespace
 
-ROOT::Experimental::Internal::RNTupleIndex::RNTupleIndex(std::vector<std::unique_ptr<RFieldBase>> &fields,
-                                                         NTupleSize_t nEntries)
-   : fIndexFields(std::move(fields))
+ROOT::Experimental::Internal::RNTupleIndex::RNTupleIndex(const std::vector<std::string> &fieldNames,
+                                                         const RPageSource &pageSource)
+   : fPageSource(pageSource.Clone())
+{
+   fPageSource->Attach();
+   auto desc = fPageSource->GetSharedDescriptorGuard();
+
+   fIndexFields.reserve(fieldNames.size());
+
+   for (const auto &fieldName : fieldNames) {
+      auto fieldId = desc->FindFieldId(fieldName);
+      if (fieldId == kInvalidDescriptorId)
+         throw RException(R__FAIL("Could not find field \"" + std::string(fieldName) + "."));
+
+      const auto &fieldDesc = desc->GetFieldDescriptor(fieldId);
+      auto field = fieldDesc.CreateField(desc.GetRef());
+
+      CallConnectPageSourceOnField(*field, *fPageSource);
+
+      fIndexFields.push_back(std::move(field));
+   }
+}
+
+void ROOT::Experimental::Internal::RNTupleIndex::EnsureBuilt() const
+{
+   if (!fIsBuilt)
+      throw RException(R__FAIL("Index has not been built yet"));
+}
+
+std::unique_ptr<ROOT::Experimental::Internal::RNTupleIndex>
+ROOT::Experimental::Internal::RNTupleIndex::Create(const std::vector<std::string> &fieldNames,
+                                                   const RPageSource &pageSource, bool deferBuild)
+{
+   auto index = std::unique_ptr<RNTupleIndex>(new RNTupleIndex(fieldNames, pageSource));
+
+   if (!deferBuild)
+      index->Build();
+
+   return index;
+}
+
+void ROOT::Experimental::Internal::RNTupleIndex::Build()
 {
    std::vector<RFieldBase::RValue> fieldValues;
    fieldValues.reserve(fIndexFields.size());
@@ -50,7 +89,7 @@ ROOT::Experimental::Internal::RNTupleIndex::RNTupleIndex(std::vector<std::unique
    std::vector<NTupleIndexValue_t> indexValues;
    indexValues.reserve(fIndexFields.size());
 
-   for (unsigned i = 0; i < nEntries; ++i) {
+   for (unsigned i = 0; i < fPageSource->GetNEntries(); ++i) {
       indexValues.clear();
       for (auto &fieldValue : fieldValues) {
          // TODO(fdegeus): use bulk reading
@@ -61,31 +100,8 @@ ROOT::Experimental::Internal::RNTupleIndex::RNTupleIndex(std::vector<std::unique
       }
       fIndex[RIndexValue(indexValues)].push_back(i);
    }
-}
 
-std::unique_ptr<ROOT::Experimental::Internal::RNTupleIndex>
-ROOT::Experimental::Internal::RNTupleIndex::Create(const std::vector<std::string> &fieldNames, RPageSource &pageSource)
-{
-   pageSource.Attach();
-   auto desc = pageSource.GetSharedDescriptorGuard();
-
-   std::vector<std::unique_ptr<RFieldBase>> fields;
-   fields.reserve(fieldNames.size());
-
-   for (const auto &fieldName : fieldNames) {
-      auto fieldId = desc->FindFieldId(fieldName);
-      if (fieldId == kInvalidDescriptorId)
-         throw RException(R__FAIL("Could not find field \"" + std::string(fieldName) + "."));
-
-      const auto &fieldDesc = desc->GetFieldDescriptor(fieldId);
-      auto field = fieldDesc.CreateField(desc.GetRef());
-
-      CallConnectPageSourceOnField(*field, pageSource);
-
-      fields.push_back(std::move(field));
-   }
-
-   return std::unique_ptr<RNTupleIndex>(new RNTupleIndex(fields, pageSource.GetNEntries()));
+   fIsBuilt = true;
 }
 
 ROOT::Experimental::NTupleSize_t
@@ -102,6 +118,8 @@ ROOT::Experimental::Internal::RNTupleIndex::GetAllEntryNumbers(const std::vector
 {
    if (valuePtrs.size() != fIndexFields.size())
       throw RException(R__FAIL("Number of value pointers must match number of indexed fields."));
+
+   EnsureBuilt();
 
    std::vector<NTupleIndexValue_t> indexValues;
    indexValues.reserve(fIndexFields.size());

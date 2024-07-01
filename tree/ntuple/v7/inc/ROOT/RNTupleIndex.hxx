@@ -70,17 +70,28 @@ private:
    /// their respsective entry numbers.
    std::unordered_map<RIndexValue, std::vector<NTupleSize_t>, RIndexValueHash> fIndex;
 
-   /////////////////////////////////////////////////////////////////////////////
-   /// \brief Create an RNTupleIndex for an existing RNTuple.
-   ///
-   /// \param[in] fields The fields that will make up the index.
-   /// \param[in] nEntries The number of entries to index.
-   ///
-   /// \note The page source is assumed be attached already.
-   RNTupleIndex(std::vector<std::unique_ptr<RFieldBase>> &fields, NTupleSize_t nEntries);
+   /// The page source belonging to the RNTuple for which to build the index.
+   std::unique_ptr<RPageSource> fPageSource;
 
    /// The fields for which the index is built. Used to compute the hashes for each entry value.
    std::vector<std::unique_ptr<RFieldBase>> fIndexFields;
+
+   /// Only built indexes can be queried.
+   bool fIsBuilt = false;
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Create an a new RNTupleIndex for the RNTuple represented by the provided page source.
+   ///
+   /// \param[in] fieldNames The names of the fields to index. Only integral-type fields can be specified as index
+   /// fields.
+   /// \param[in] pageSource The page source.
+   RNTupleIndex(const std::vector<std::string> &fieldNames, const RPageSource &pageSource);
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Ensure the RNTupleIndex has been built.
+   ///
+   /// \throws RException If the index has not been built, and can therefore not be used yet.
+   void EnsureBuilt() const;
 
 public:
    RNTupleIndex(const RNTupleIndex &other) = delete;
@@ -92,20 +103,42 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Create an RNTupleIndex from an existing RNTuple.
    ///
-   /// \param[in] fieldNames The names of the fields to index.
+   /// \param[in] fieldNames The names of the fields to index. Only integral-type fields can be specified as index
+   /// fields.
    /// \param[in] pageSource The page source.
+   /// \param[in] deferBuild When set to `true`, an empty index will be created. A call to RNTupleIndex::Build is
+   /// required before the index can actually be used.
    ///
    /// \return A pointer to the newly-created index.
-   static std::unique_ptr<RNTupleIndex> Create(const std::vector<std::string> &fieldNames, RPageSource &pageSource);
+   static std::unique_ptr<RNTupleIndex>
+   Create(const std::vector<std::string> &fieldNames, const RPageSource &pageSource, bool deferBuild = false);
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Get the number of values currently indexed.
+   /// \brief Build the index.
    ///
-   /// \return The number of values currently indexed.
+   /// Only a built index can be queried (with RNTupleIndex::GetFirstEntryNumber or RNTupleIndex::GetAllEntryNumbers).
+   void Build();
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Get the number of indexed values.
+   ///
+   /// \return The number of indexed values.
    ///
    /// \note This does not have to correspond to the number of entries in the original RNTuple. If the original RNTuple
    /// contains duplicate index values, they are counted as one.
-   std::size_t GetSize() const { return fIndex.size(); }
+   std::size_t GetSize() const
+   {
+      EnsureBuilt();
+      return fIndex.size();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Whether the index has been built (and therefore ready to be used).
+   ///
+   /// \return `true` if the index has been built.
+   ///
+   /// Only built indexes can be queried.
+   bool IsBuilt() const { return fIsBuilt; }
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Get the first entry number containing the given index value.

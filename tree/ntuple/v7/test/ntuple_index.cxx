@@ -31,6 +31,38 @@ TEST(RNTupleIndex, Basic)
    }
 }
 
+TEST(RNTupleIndex, DeferBuild)
+{
+   FileRaii fileGuard("test_ntuple_index_defer_build.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fld = model->MakeField<std::uint64_t>("fld");
+
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard.GetPath());
+
+      for (int i = 0; i < 10; ++i) {
+         *fld = i * 2;
+         ntuple->Fill();
+      }
+   }
+
+   auto pageSource = RPageSource::Create("ntuple", fileGuard.GetPath());
+   auto index = RNTupleIndex::Create({"fld"}, *pageSource, true /* deferBuild */);
+   EXPECT_FALSE(index->IsBuilt());
+
+   try {
+      index->GetFirstEntryNumber<std::uint64_t>(0);
+      FAIL() << "querying an unbuilt index should not be possible";
+   } catch (const RException &err) {
+      EXPECT_THAT(err.what(), testing::HasSubstr("Index has not been built yet"));
+   }
+
+   index->Build();
+   EXPECT_TRUE(index->IsBuilt());
+
+   EXPECT_EQ(0, index->GetFirstEntryNumber<std::uint64_t>(0));
+}
+
 TEST(RNTupleIndex, InvalidTypes)
 {
    FileRaii fileGuard("test_ntuple_index_invalid_types.root");
