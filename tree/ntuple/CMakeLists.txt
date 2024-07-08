@@ -23,6 +23,7 @@ HEADERS
   ROOT/RField.hxx
   ROOT/RFieldBase.hxx
   ROOT/RFieldVisitor.hxx
+  ROOT/RHashValueVisitor.hxx
   ROOT/RMiniFile.hxx
   ROOT/RNTuple.hxx
   ROOT/RNTupleCollectionWriter.hxx
@@ -59,6 +60,7 @@ SOURCES
   v7/src/RColumnElement.cxx
   v7/src/RField.cxx
   v7/src/RFieldVisitor.cxx
+  v7/src/RHashValueVisitor.cxx
   v7/src/RMiniFile.cxx
   v7/src/RNTuple.cxx
   v7/src/RNTupleDescriptor.cxx
