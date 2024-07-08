@@ -5,6 +5,7 @@
 #include <ROOT/RError.hxx>
 #include <ROOT/RField.hxx>
 #include <ROOT/RFieldVisitor.hxx>
+#include <ROOT/RHashValueVisitor.hxx>
 #include <ROOT/RMiniFile.hxx>
 #include <ROOT/RNTupleCollectionWriter.hxx>
 #include <ROOT/RNTupleDescriptor.hxx>
@@ -70,6 +71,7 @@ template <class T>
 using RField = ROOT::Experimental::RField<T>;
 using RFieldBase = ROOT::Experimental::RFieldBase;
 using RFieldDescriptor = ROOT::Experimental::RFieldDescriptor;
+using RHashValueVisitor = ROOT::Experimental::Internal::RHashValueVisitor;
 using RNTupleLocator = ROOT::Experimental::RNTupleLocator;
 using RNTupleLocatorObject64 = ROOT::Experimental::RNTupleLocatorObject64;
 using RMiniFileReader = ROOT::Experimental::Internal::RMiniFileReader;
