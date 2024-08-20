@@ -38,12 +38,17 @@ namespace Internal {
 class RNTupleIndex {
 private:
    /////////////////////////////////////////////////////////////////////////////
-   /// Container for the hashes of the indexed fields.
+   /// Container for the hash of the indexed fields.
    class RIndexValue {
    public:
-      std::vector<std::size_t> fValueHashes;
-      RIndexValue(const std::vector<std::size_t> &valueHashes) : fValueHashes(valueHashes) {}
-      inline bool operator==(const RIndexValue &other) const { return other.fValueHashes == fValueHashes; }
+      std::size_t fCombinedValueHash = 0;
+      // RIndexValue(std::size_t valueHash) : fValueHash(valueHash) {}
+      inline bool operator==(const RIndexValue &other) const { return other.fCombinedValueHash == fCombinedValueHash; }
+      inline RIndexValue &operator+=(std::size_t valueHash)
+      {
+         fCombinedValueHash ^= valueHash + 0x9e3779b9 + (fCombinedValueHash << 6) + (fCombinedValueHash >> 2);
+         return *this;
+      }
    };
 
    /////////////////////////////////////////////////////////////////////////////
@@ -51,14 +56,7 @@ private:
    /// `boost::hash_combine` (see
    /// https://www.boost.org/doc/libs/1_55_0/doc/html/hash/reference.html#boost.hash_combine).
    struct RIndexValueHash {
-      inline std::size_t operator()(const RIndexValue &indexValue) const
-      {
-         std::size_t combinedHash = 0;
-         for (const auto &valueHash : indexValue.fValueHashes) {
-            combinedHash ^= valueHash + 0x9e3779b9 + (valueHash << 6) + (valueHash >> 2);
-         }
-         return combinedHash;
-      }
+      inline std::size_t operator()(const RIndexValue &indexValue) const { return indexValue.fCombinedValueHash; }
    };
 
    /// The fields for which the index is built. Used to compute the hashes for each entry value.
@@ -82,7 +80,7 @@ private:
    ///
    /// \param[in] valuePtrs The entry values to index, according to fFields.
    /// \param[in] entry The entry number.
-   void Add(const std::vector<void *> &valuePtrs, NTupleSize_t entry);
+   void Add(const std::vector<RFieldBase::RValue> &values, NTupleSize_t entry);
 
 public:
    RNTupleIndex(const RNTupleIndex &other) = delete;
@@ -99,8 +97,7 @@ public:
    ///
    /// \return A pointer to the newly-created index.
    ///
-   static std::unique_ptr<RNTupleIndex>
-   Create(const std::vector<std::string_view> &fieldNames, RPageSource &pageSource);
+   static std::unique_ptr<RNTupleIndex> Create(const std::vector<std::string> &fieldNames, RPageSource &pageSource);
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Get the number of elements currently indexed.
