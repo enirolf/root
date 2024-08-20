@@ -86,9 +86,9 @@ TEST(RNTupleIndex, MultipleFields)
    FileRaii fileGuard("test_ntuple_index_multiple_fields.root");
    {
       auto model = RNTupleModel::Create();
-      auto fldRun = model->MakeField<std::uint64_t>("run");
-      auto fldEvent = model->MakeField<std::uint64_t>("event");
-      auto fldX = model->MakeField<float>("x");
+      auto fldRun = model->MakeField<std::uint8_t>("run");
+      auto fldEvent = model->MakeField<std::uint32_t>("event");
+      auto fldX = model->MakeField<std::int32_t>("x");
 
       auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard.GetPath());
 
@@ -96,7 +96,7 @@ TEST(RNTupleIndex, MultipleFields)
          *fldRun = i;
          for (int j = 0; j < 5; ++j) {
             *fldEvent = j;
-            *fldX = static_cast<float>(i + j) / 3.14;
+            *fldX = i * j;
             ntuple->Fill();
          }
       }
@@ -108,18 +108,19 @@ TEST(RNTupleIndex, MultipleFields)
    auto index = ROOT::Experimental::Internal::RNTupleIndex::Create({"run", "event"}, *pageSource);
 
    auto ntuple = RNTupleReader::Open("ntuple", fileGuard.GetPath());
-   auto fld = ntuple->GetView<float>("x");
+   auto fld = ntuple->GetView<std::int32_t>("x");
 
-   std::uint64_t event, run;
+   std::uint8_t event;
+   std::uint32_t run;
    for (std::uint64_t i = 0; i < pageSource->GetNEntries(); ++i) {
       run = i / 5;
       event = i % 5;
-      auto entryIdx = index->GetFirstEntryNumber<std::uint64_t, std::uint64_t>(run, event);
+      auto entryIdx = index->GetFirstEntryNumber<std::uint8_t, std::uint32_t>(run, event);
       EXPECT_EQ(fld(entryIdx), fld(i));
    }
 
-   auto idx1 = index->GetFirstEntryNumber<std::uint64_t, std::uint64_t>(2, 1);
-   auto idx2 = index->GetFirstEntryNumber<std::uint64_t, std::uint64_t>(1, 2);
+   auto idx1 = index->GetFirstEntryNumber<std::uint8_t, std::uint32_t>(2, 1);
+   auto idx2 = index->GetFirstEntryNumber<std::uint8_t, std::uint32_t>(1, 2);
    EXPECT_NE(idx1, idx2);
 }
 
@@ -158,4 +159,32 @@ TEST(RNTupleIndex, MultipleMatches)
    EXPECT_EQ(expected, *entryIdxs);
    entryIdxs = index->GetAllEntryNumbers<std::uint64_t>(4);
    EXPECT_EQ(nullptr, entryIdxs);
+}
+
+TEST(RNTupleIndex, Collisions)
+{
+   FileRaii fileGuard("test_ntuple_index_collisions.root");
+   {
+      auto model = RNTupleModel::Create();
+      auto fldRun = model->MakeField<std::uint8_t>("run");
+      auto fldEvent = model->MakeField<std::uint8_t>("event");
+
+      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard.GetPath());
+
+      *fldRun = 6;
+      *fldEvent = 30;
+      ntuple->Fill();
+
+      *fldRun = 8;
+      *fldEvent = 15;
+      ntuple->Fill();
+   }
+
+   auto pageSource = RPageSource::Create("ntuple", fileGuard.GetPath());
+   pageSource->Attach();
+
+   auto index = ROOT::Experimental::Internal::RNTupleIndex::Create({"run", "event"}, *pageSource);
+
+   auto entries = index->GetAllEntryNumbers<std::uint8_t, std::uint8_t>(6, 30);
+   EXPECT_EQ(1, entries->size());
 }

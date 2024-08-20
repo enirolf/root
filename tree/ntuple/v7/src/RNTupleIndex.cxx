@@ -27,34 +27,29 @@ ROOT::Experimental::Internal::RNTupleIndex::RNTupleIndex(std::vector<std::unique
    }
 
    for (std::uint64_t i = 0; i < nEntries; ++i) {
-      std::vector<void *> ptrs;
-      ptrs.reserve(fieldValues.size());
       for (auto &fieldValue : fieldValues) {
          // TODO(fdegeus): use bulk reading
          fieldValue.Read(i);
-         ptrs.push_back(fieldValue.GetPtr<void>().get());
       }
-      Add(ptrs, i);
+      Add(fieldValues, i);
    }
 }
 
-void ROOT::Experimental::Internal::RNTupleIndex::Add(const std::vector<void *> &valuePtrs, NTupleSize_t entry)
+void ROOT::Experimental::Internal::RNTupleIndex::Add(const std::vector<RFieldBase::RValue> &values, NTupleSize_t entry)
 {
-   std::vector<std::size_t> valueHashes;
-   valueHashes.reserve(fFields.size());
+   RIndexValue indexValue;
    for (unsigned i = 0; i < fFields.size(); ++i) {
       auto &field = fFields[i];
-      auto valuePtr = valuePtrs[i];
-      RHashValueVisitor visitor(valuePtr);
+      auto valuePtr = values[i].GetPtr<void>();
+      RHashValueVisitor visitor(valuePtr.get());
       field->AcceptVisitor(visitor);
-      valueHashes.push_back(visitor.GetHash());
+      indexValue += visitor.GetHash();
    }
-   fIndex[RIndexValue(valueHashes)].push_back(entry);
+   fIndex[indexValue].push_back(entry);
 }
 
 std::unique_ptr<ROOT::Experimental::Internal::RNTupleIndex>
-ROOT::Experimental::Internal::RNTupleIndex::Create(const std::vector<std::string_view> &fieldNames,
-                                                   RPageSource &pageSource)
+ROOT::Experimental::Internal::RNTupleIndex::Create(const std::vector<std::string> &fieldNames, RPageSource &pageSource)
 {
    pageSource.Attach();
    auto desc = pageSource.GetSharedDescriptorGuard();
@@ -90,16 +85,14 @@ ROOT::Experimental::Internal::RNTupleIndex::GetFirstEntryNumber(const std::vecto
 const std::vector<ROOT::Experimental::NTupleSize_t> *
 ROOT::Experimental::Internal::RNTupleIndex::GetAllEntryNumbers(const std::vector<void *> &valuePtrs) const
 {
-   std::vector<std::size_t> valueHashes;
-   valueHashes.reserve(fFields.size());
+   RIndexValue indexValue;
    for (unsigned i = 0; i < fFields.size(); ++i) {
       auto &field = fFields[i];
       auto valuePtr = valuePtrs[i];
       RHashValueVisitor visitor(valuePtr);
       field->AcceptVisitor(visitor);
-      valueHashes.push_back(visitor.GetHash());
+      indexValue += visitor.GetHash();
    }
-   RIndexValue indexValue(valueHashes);
 
    if (!fIndex.count(indexValue))
       return nullptr;
