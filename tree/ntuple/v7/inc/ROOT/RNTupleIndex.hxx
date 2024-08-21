@@ -43,7 +43,22 @@ private:
    public:
       std::size_t fCombinedValueHash = 0;
       // RIndexValue(std::size_t valueHash) : fValueHash(valueHash) {}
-      inline bool operator==(const RIndexValue &other) const { return other.fCombinedValueHash == fCombinedValueHash; }
+      friend bool operator==(const RIndexValue &left, const RIndexValue &right)
+      {
+         return left.fCombinedValueHash == right.fCombinedValueHash;
+      }
+      friend bool operator!=(const RIndexValue &left, const RIndexValue &right)
+      {
+         return left.fCombinedValueHash != right.fCombinedValueHash;
+      }
+      friend bool operator<(const RIndexValue &left, const RIndexValue &right)
+      {
+         return left.fCombinedValueHash < right.fCombinedValueHash;
+      }
+      friend bool operator>(const RIndexValue &lhs, const RIndexValue &rhs) { return rhs < lhs; }
+      friend bool operator<=(const RIndexValue &lhs, const RIndexValue &rhs) { return !(lhs > rhs); }
+      friend bool operator>=(const RIndexValue &lhs, const RIndexValue &rhs) { return !(lhs < rhs); }
+
       inline RIndexValue &operator+=(std::size_t valueHash)
       {
          fCombinedValueHash ^= valueHash + 0x9e3779b9 + (fCombinedValueHash << 6) + (fCombinedValueHash >> 2);
@@ -64,7 +79,9 @@ private:
 
    /// The index itself. Maps field values (or combinations thereof in case the index is defined for multiple fields) to
    /// their respsective entry numbers.
-   std::unordered_map<RIndexValue, std::vector<NTupleSize_t>, RIndexValueHash> fIndex;
+   // std::unordered_map<RIndexValue, std::vector<NTupleSize_t>, RIndexValueHash> fIndex;
+   std::vector<RIndexValue> fIndexValues;
+   std::vector<NTupleSize_t> fEntryNumbers;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Create an RNTupleIndex for an existing RNTuple.
@@ -103,7 +120,7 @@ public:
    /// \brief Get the number of elements currently indexed.
    ///
    /// \return The number of elements currently indexed.
-   std::size_t GetNElements() const { return fIndex.size(); }
+   std::size_t GetNElements() const { return fIndexValues.size(); }
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Get the first entry number containing the given index value.
@@ -142,14 +159,14 @@ public:
    ///
    /// \return The entry numbers that corresponds to `valuePtrs`. When no such entry exists, an empty vector is
    /// returned.
-   const std::vector<NTupleSize_t> *GetAllEntryNumbers(const std::vector<void *> &valuePtrs) const;
+   const std::vector<NTupleSize_t> GetAllEntryNumbers(const std::vector<void *> &valuePtrs) const;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Get all entry numbers for the given index.
    ///
    /// \sa GetAllEntryNumbers(std::vector<void *> valuePtrs)
    template <typename... Ts>
-   const std::vector<NTupleSize_t> *GetAllEntryNumbers(Ts... values) const
+   const std::vector<NTupleSize_t> GetAllEntryNumbers(Ts... values) const
    {
       // TODO(fdegeus) also check that the types match
       if (sizeof...(Ts) != fFields.size())

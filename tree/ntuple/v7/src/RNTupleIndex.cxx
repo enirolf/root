@@ -26,6 +26,9 @@ ROOT::Experimental::Internal::RNTupleIndex::RNTupleIndex(std::vector<std::unique
       fieldValues.emplace_back(field->CreateValue());
    }
 
+   fIndexValues.reserve(nEntries);
+   fEntryNumbers.reserve(nEntries);
+
    for (std::uint64_t i = 0; i < nEntries; ++i) {
       for (auto &fieldValue : fieldValues) {
          // TODO(fdegeus): use bulk reading
@@ -45,7 +48,16 @@ void ROOT::Experimental::Internal::RNTupleIndex::Add(const std::vector<RFieldBas
       field->AcceptVisitor(visitor);
       indexValue += visitor.GetHash();
    }
-   fIndex[indexValue].push_back(entry);
+
+   if (fIndexValues.empty() || (fIndexValues.size() > 0 && indexValue >= fIndexValues.back())) {
+      fIndexValues.push_back(indexValue);
+      fEntryNumbers.push_back(entry);
+   } else {
+      auto pos =
+         std::distance(fIndexValues.cbegin(), std::upper_bound(fIndexValues.cbegin(), fIndexValues.cend(), indexValue));
+      fIndexValues.insert(fIndexValues.cbegin() + pos, indexValue);
+      fEntryNumbers.insert(fEntryNumbers.cbegin() + pos, entry);
+   }
 }
 
 std::unique_ptr<ROOT::Experimental::Internal::RNTupleIndex>
@@ -76,13 +88,25 @@ ROOT::Experimental::Internal::RNTupleIndex::Create(const std::vector<std::string
 ROOT::Experimental::NTupleSize_t
 ROOT::Experimental::Internal::RNTupleIndex::GetFirstEntryNumber(const std::vector<void *> &valuePtrs) const
 {
-   const auto entryIndices = GetAllEntryNumbers(valuePtrs);
-   if (!entryIndices)
+   // TODO move to seperate function for deduplication
+   RIndexValue indexValue;
+   for (unsigned i = 0; i < fFields.size(); ++i) {
+      auto &field = fFields[i];
+      auto valuePtr = valuePtrs[i];
+      RHashValueVisitor visitor(valuePtr);
+      field->AcceptVisitor(visitor);
+      indexValue += visitor.GetHash();
+   }
+
+   auto entryNumber = std::lower_bound(fIndexValues.cbegin(), fIndexValues.cend(), indexValue);
+
+   if (*entryNumber != indexValue)
       return kInvalidNTupleIndex;
-   return entryIndices->front();
+
+   return fEntryNumbers.at(std::distance(fIndexValues.cbegin(), entryNumber));
 }
 
-const std::vector<ROOT::Experimental::NTupleSize_t> *
+const std::vector<ROOT::Experimental::NTupleSize_t>
 ROOT::Experimental::Internal::RNTupleIndex::GetAllEntryNumbers(const std::vector<void *> &valuePtrs) const
 {
    RIndexValue indexValue;
@@ -94,8 +118,13 @@ ROOT::Experimental::Internal::RNTupleIndex::GetAllEntryNumbers(const std::vector
       indexValue += visitor.GetHash();
    }
 
-   if (!fIndex.count(indexValue))
-      return nullptr;
+   auto entryNumberRange = std::equal_range(fIndexValues.cbegin(), fIndexValues.cend(), indexValue);
 
-   return &fIndex.at(indexValue);
+   if (entryNumberRange.first == fIndexValues.cend())
+      return {};
+
+   auto firstIdx = fEntryNumbers.cbegin() + std::distance(fIndexValues.cbegin(), entryNumberRange.first);
+   auto lastIdx = fEntryNumbers.cbegin() + std::distance(fIndexValues.cbegin(), entryNumberRange.second);
+
+   return std::vector<NTupleSize_t>(firstIdx, lastIdx);
 }
