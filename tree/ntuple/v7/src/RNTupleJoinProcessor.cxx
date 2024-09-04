@@ -67,7 +67,7 @@ void ROOT::Experimental::Internal::RNTupleJoinProcessor::ConnectField(RFieldCont
 
 void ROOT::Experimental::Internal::RNTupleJoinProcessor::ActivateField(std::string_view fieldName)
 {
-   auto fnCreateField = [&](Internal::RPageSource &pageSource) -> void {
+   auto fnCreateField = [&](Internal::RPageSource &pageSource, bool isPrimary) -> void {
       auto desc = pageSource.GetSharedDescriptorGuard();
       auto fieldId = desc->FindFieldId(GetFieldNameWithoutPrefix(fieldName, desc->GetName()));
       auto &fieldDesc = pageSource.GetSharedDescriptorGuard()->GetFieldDescriptor(fieldId);
@@ -79,19 +79,24 @@ void ROOT::Experimental::Internal::RNTupleJoinProcessor::ActivateField(std::stri
       }
       auto protoField = fieldOrException.Unwrap();
 
-      RFieldContext fieldContext(std::move(protoField), pageSource);
+      RFieldContext fieldContext(std::move(protoField), pageSource, isPrimary);
       ConnectField(fieldContext);
       fFieldContexts.try_emplace(std::string(fieldName), std::move(fieldContext));
    };
 
    std::string fieldNamePrefix{GetFieldNamePrefix(fieldName)};
    if (fieldNamePrefix.empty()) {
-      fnCreateField(*fPrimaryPageSource);
-   } else if (fSecondaryPageSources.find(fieldNamePrefix) != fSecondaryPageSources.end()) {
-      fnCreateField(*fSecondaryPageSources.at(std::string(fieldNamePrefix)));
+      fnCreateField(*fPrimaryPageSource, true);
+   } else if (auto pageSource = fSecondaryPageSources.find(fieldNamePrefix);
+              pageSource != fSecondaryPageSources.end()) {
+      fnCreateField(*pageSource->second, false);
 
-      if (fJoinIndices.find(fieldNamePrefix) != fJoinIndices.end() && !fJoinIndices.at(fieldNamePrefix)->IsBuilt())
-         fJoinIndices.at(fieldNamePrefix)->Build();
+      if (!fUseIndex)
+         return;
+
+      auto joinIndex = fJoinIndices.find(fieldNamePrefix);
+      if (joinIndex != fJoinIndices.end() && !joinIndex->second->IsBuilt())
+         joinIndex->second->Build();
    } else {
       throw RException(R__FAIL("could not find field in any of the page sources"));
    }
@@ -117,7 +122,7 @@ ROOT::Experimental::Internal::RNTupleJoinProcessor::RNTupleJoinProcessor(const s
 
 ROOT::Experimental::Internal::RNTupleJoinProcessor::RNTupleJoinProcessor(const std::vector<RNTupleSourceSpec> &ntuples,
                                                                          const std::vector<std::string> &indexFields)
-   : fNTuples(ntuples), fIndexFieldNames(indexFields)
+   : fNTuples(ntuples), fIndexFieldNames(indexFields), fUseIndex(true)
 {
    if (fNTuples.empty())
       throw RException(R__FAIL("at least one RNTuple must be provided"));

@@ -125,9 +125,11 @@ TEST(RNTupleJoinProcessor, UnalignedBasic)
    {
       auto model = RNTupleModel::Create();
       auto fldI = model->MakeField<int>("i");
+      auto fldX = model->MakeField<float>("x");
       auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple1", fileGuard1.GetPath());
 
       for (*fldI = 0; *fldI < 5; ++(*fldI)) {
+         *fldX = *fldI * 0.5;
          ntuple->Fill();
       }
    }
@@ -150,9 +152,10 @@ TEST(RNTupleJoinProcessor, UnalignedBasic)
    RNTupleJoinProcessor processor(ntuples, {"i"});
 
    auto i = processor.GetPtr<int>("i");
+   auto x = processor.GetPtr<float>("x");
    auto y = processor.GetPtr<float>("ntuple2.y");
-   for (auto &entry : processor) {
-      std::cout << entry.GetEntryIndex() << std::endl;
+   for (auto &_ : processor) {
+      EXPECT_FLOAT_EQ(static_cast<float>(*i * 0.5), *x);
 
       if (*i % 2 == 1) {
          EXPECT_FLOAT_EQ(static_cast<float>(*i * 0.2), *y);

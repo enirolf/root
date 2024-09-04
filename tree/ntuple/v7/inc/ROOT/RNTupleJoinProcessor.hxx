@@ -58,10 +58,12 @@ private:
       std::unique_ptr<RFieldBase> fConcreteField;
       std::unique_ptr<RFieldBase::RValue> fValue;
       Internal::RPageSource &fPageSource;
+      bool fIsPrimaryField; //< True if the field is part of the primary page source.
 
    public:
-      RFieldContext(std::unique_ptr<ROOT::Experimental::RFieldBase> field, Internal::RPageSource &pageSource)
-         : fProtoField(std::move(field)), fPageSource(pageSource)
+      RFieldContext(std::unique_ptr<ROOT::Experimental::RFieldBase> field, Internal::RPageSource &pageSource,
+                    bool isPrimaryField = true)
+         : fProtoField(std::move(field)), fPageSource(pageSource), fIsPrimaryField(isPrimaryField)
       {
       }
 
@@ -79,8 +81,10 @@ private:
 
    std::unique_ptr<Internal::RPageSource> fPrimaryPageSource;
    std::unordered_map<std::string, std::unique_ptr<Internal::RPageSource>> fSecondaryPageSources;
-   std::unordered_map<std::string, std::unique_ptr<RNTupleIndex>> fJoinIndices;
    std::unordered_map<std::string, RFieldContext> fFieldContexts;
+
+   bool fUseIndex = false;
+   std::unordered_map<std::string, std::unique_ptr<RNTupleIndex>> fJoinIndices;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Make sure none of the horizontally concatenated RNTuples bear the same name
@@ -132,20 +136,21 @@ private:
       }
 
       for (auto &[fieldName, fieldContext] : fFieldContexts) {
-         if (std::find(fIndexFieldNames.cbegin(), fIndexFieldNames.cend(), fieldName) != fIndexFieldNames.end())
+         if (fieldContext.fIsPrimaryField || !fUseIndex) {
+            fieldContext.fValue->Read(idx);
             continue;
+         }
 
          auto ntupleName = fieldContext.fPageSource.GetNTupleName();
-         if (fJoinIndices.find(ntupleName) != fJoinIndices.end()) {
-            auto joinIdx = fJoinIndices.at(ntupleName)->GetFirstEntryNumber(valPtrs);
+         auto joinIndex = fJoinIndices.find(ntupleName);
+         if (joinIndex != fJoinIndices.end()) {
+            auto joinIdx = joinIndex->second->GetFirstEntryNumber(valPtrs);
 
             if (joinIdx == kInvalidNTupleIndex) {
                fieldContext.fProtoField->ConstructValue(fieldContext.fValue->GetPtr<void>().get());
             } else {
                fieldContext.fValue->Read(joinIdx);
             }
-         } else {
-            fieldContext.fValue->Read(idx);
          }
       }
    }
