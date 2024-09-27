@@ -23,7 +23,8 @@ TEST(RNTupleProcessor, Basic)
 
    std::vector<RNTupleSourceSpec> ntuples;
    try {
-      RNTupleProcessor proc(ntuples);
+      auto proc = RNTupleProcessor::CreateChain(ntuples);
+      // RNTupleProcessor proc(ntuples);
       FAIL() << "creating a processor without at least one RNTuple should throw";
    } catch (const RException &err) {
       EXPECT_THAT(err.what(), testing::HasSubstr("at least one RNTuple must be provided"));
@@ -32,7 +33,8 @@ TEST(RNTupleProcessor, Basic)
    ntuples = {{"ntuple", fileGuard.GetPath()}};
 
    int nEntries = 0;
-   for (const auto &entry : RNTupleProcessor(ntuples)) {
+   auto proc = RNTupleProcessor::CreateChain(ntuples);
+   for (const auto &entry : *proc) {
       auto x = entry->GetPtr<float>("x");
       EXPECT_EQ(static_cast<float>(entry.GetGlobalEntryIndex()), *x);
       ++nEntries;
@@ -63,7 +65,8 @@ TEST(RNTupleProcessor, WithModel)
 
    std::vector<RNTupleSourceSpec> ntuples = {{"ntuple", fileGuard.GetPath()}};
 
-   for (const auto &entry : RNTupleProcessor(ntuples, std::move(model))) {
+   auto proc = RNTupleProcessor::CreateChain(ntuples, std::move(model));
+   for (const auto &entry : *proc) {
       EXPECT_EQ(static_cast<float>(entry.GetGlobalEntryIndex()) * 2.f, *fldY);
    }
 }
@@ -90,7 +93,8 @@ TEST(RNTupleProcessor, WithBareModel)
    model->MakeField<float>("y");
    std::vector<RNTupleSourceSpec> ntuples = {{"ntuple", fileGuard.GetPath()}};
 
-   for (const auto &entry : RNTupleProcessor(ntuples, std::move(model))) {
+   auto proc = RNTupleProcessor::CreateChain(ntuples, std::move(model));
+   for (const auto &entry : *proc) {
       EXPECT_EQ(static_cast<float>(entry.GetGlobalEntryIndex()) * 2.f, *entry->GetPtr<float>("y"));
    }
 }
@@ -127,7 +131,8 @@ TEST(RNTupleProcessor, SimpleChain)
    std::vector<RNTupleSourceSpec> ntuples = {{"ntuple", fileGuard1.GetPath()}, {"ntuple", fileGuard2.GetPath()}};
 
    std::uint64_t nEntries = 0;
-   for (const auto &entry : RNTupleProcessor(ntuples)) {
+   auto proc = RNTupleProcessor::CreateChain(ntuples);
+   for (const auto &entry : *proc) {
       auto x = entry->GetPtr<float>("x");
       EXPECT_EQ(static_cast<float>(entry.GetGlobalEntryIndex()), *x);
 
@@ -175,8 +180,8 @@ TEST(RNTupleProcessor, SimpleChainWithModel)
    std::vector<RNTupleSourceSpec> ntuples = {
       {"ntuple", fileGuard1.GetPath()}, {"ntuple", fileGuard2.GetPath()}, {"ntuple", fileGuard3.GetPath()}};
 
-   RNTupleProcessor processor(ntuples, std::move(model));
-   auto entry = processor.begin();
+   auto proc = RNTupleProcessor::CreateChain(ntuples, std::move(model));
+   auto entry = proc->begin();
    *entry;
    EXPECT_EQ(1.f, *fldX);
    entry++;
@@ -243,7 +248,7 @@ TEST(RNTupleProcessor, EmptyNTuples)
    std::uint64_t nEntries = 0;
 
    try {
-      RNTupleProcessor proc(ntuples);
+      auto proc = RNTupleProcessor::CreateChain(ntuples);
       FAIL() << "creating a processor where the first RNTuple does not contain any entries should throw";
    } catch (const RException &err) {
       EXPECT_THAT(err.what(), testing::HasSubstr("first RNTuple does not contain any entries"));
@@ -254,7 +259,8 @@ TEST(RNTupleProcessor, EmptyNTuples)
               {"ntuple", fileGuard4.GetPath()},
               {"ntuple", fileGuard5.GetPath()}};
 
-   for (const auto &entry : RNTupleProcessor(ntuples)) {
+   auto proc = RNTupleProcessor::CreateChain(ntuples);
+   for (const auto &entry : *proc) {
       auto x = entry->GetPtr<float>("x");
       EXPECT_EQ(static_cast<float>(nEntries), *x);
       ++nEntries;
@@ -282,8 +288,8 @@ TEST(RNTupleProcessor, ChainUnalignedModels)
 
    std::vector<RNTupleSourceSpec> ntuples = {{"ntuple", fileGuard1.GetPath()}, {"ntuple", fileGuard2.GetPath()}};
 
-   auto proc = RNTupleProcessor(ntuples);
-   auto entry = proc.begin();
+   auto proc = RNTupleProcessor::CreateChain(ntuples);
+   auto entry = proc->begin();
    auto x = (*entry)->GetPtr<float>("x");
    auto y = (*entry)->GetPtr<char>("y");
    EXPECT_EQ(0., *x);

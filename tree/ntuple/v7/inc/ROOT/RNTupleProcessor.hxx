@@ -78,7 +78,7 @@ respect to the order of provided RNTupleSpecs) and the actual REntry containing 
 */
 // clang-format on
 class RNTupleProcessor {
-private:
+protected:
    // clang-format off
    /**
    \class ROOT::Experimental::RNTupleProcessor::RFieldContext
@@ -93,6 +93,7 @@ private:
    // clang-format on
    class RFieldContext {
       friend class RNTupleProcessor;
+      friend class RNTupleChainProcessor;
 
    private:
       std::unique_ptr<RFieldBase> fProtoField;
@@ -125,13 +126,21 @@ private:
    ///
    /// Creates and attaches new page source for the specified RNTuple, and connects the fields that are known by
    /// the processor to it.
-   NTupleSize_t ConnectNTuple(const RNTupleSourceSpec &ntuple);
+   virtual NTupleSize_t ConnectNTuple(const RNTupleSourceSpec &ntuple) = 0;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Creates and connects concrete fields to the current page source, based on the proto-fields.
-   void ConnectFields();
+   virtual void ConnectFields() = 0;
+
+   RNTupleProcessor(const std::vector<RNTupleSourceSpec> &ntuples) : fNTuples(ntuples) {}
 
 public:
+   RNTupleProcessor(const RNTupleProcessor &) = delete;
+   RNTupleProcessor(RNTupleProcessor &&) = delete;
+   RNTupleProcessor &operator=(const RNTupleProcessor &) = delete;
+   RNTupleProcessor &operator=(RNTupleProcessor &&) = delete;
+   virtual ~RNTupleProcessor() = default;
+
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Returns a reference to the entry used by the processor.
    ///
@@ -245,8 +254,21 @@ public:
       bool operator==(const iterator &rh) const { return fState.fGlobalEntryIndex == rh.fState.fGlobalEntryIndex; }
    };
 
+   RIterator begin() { return RIterator(*this, 0, 0); }
+   RIterator end() { return RIterator(*this, fNTuples.size(), kInvalidNTupleIndex); }
+
+   static std::unique_ptr<RNTupleProcessor>
+   CreateChain(const std::vector<RNTupleSourceSpec> &ntuples, std::unique_ptr<RNTupleModel> model = nullptr);
+};
+
+class RNTupleChainProcessor : public RNTupleProcessor {
+private:
+   NTupleSize_t ConnectNTuple(const RNTupleSourceSpec &ntuple) final;
+   void ConnectFields() final;
+
+public:
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Constructs a new RNTupleProcessor.
+   /// \brief Constructs a new RNTupleChainProcessor.
    ///
    /// \param[in] ntuples The source specification (name and storage location) for each RNTuple to process.
    /// \param[in] model The model that specifies which fields should be read by the processor. The pointer returned by
@@ -254,10 +276,7 @@ public:
    /// specified, it is created from the descriptor of the first RNTuple specified in `ntuples`.
    ///
    /// RNTuples are processed in the order in which they are specified.
-   RNTupleProcessor(const std::vector<RNTupleSourceSpec> &ntuples, std::unique_ptr<RNTupleModel> model = nullptr);
-
-   RIterator begin() { return RIterator(*this, 0, 0); }
-   RIterator end() { return RIterator(*this, fNTuples.size(), kInvalidNTupleIndex); }
+   RNTupleChainProcessor(const std::vector<RNTupleSourceSpec> &ntuples, std::unique_ptr<RNTupleModel> model = nullptr);
 };
 
 } // namespace Internal
