@@ -36,6 +36,7 @@ namespace Experimental {
 namespace Internal {
 class RNTupleProcessor;
 class RNTupleChainProcessor;
+class RNTupleJoinProcessor;
 }
 
 // clang-format off
@@ -55,6 +56,7 @@ class REntry {
    friend class RNTupleFillContext;
    friend class Internal::RNTupleProcessor; //(fdegeus) TODO
    friend class Internal::RNTupleChainProcessor;
+   friend class Internal::RNTupleJoinProcessor;
 
 public:
    /// The field token identifies a top-level field in this entry. It can be used for fast indexing in REntry's
