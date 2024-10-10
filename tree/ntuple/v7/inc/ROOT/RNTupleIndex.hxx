@@ -43,12 +43,18 @@ private:
    class RIndexValue {
    public:
       std::vector<NTupleIndexValue_t> fFieldValues;
+
+      RIndexValue() = default;
+
       RIndexValue(const std::vector<NTupleIndexValue_t> &fieldValues)
       {
          fFieldValues.reserve(fieldValues.size());
          fFieldValues = fieldValues;
       }
-      inline bool operator==(const RIndexValue &other) const { return other.fFieldValues == fFieldValues; }
+
+      inline bool operator==(const RIndexValue &other) const { return fFieldValues == other.fFieldValues; }
+      inline bool operator<(const RIndexValue &other) const { return fFieldValues < other.fFieldValues; }
+      inline bool operator>(const RIndexValue &other) const { return fFieldValues > other.fFieldValues; }
    };
 
    /////////////////////////////////////////////////////////////////////////////
@@ -66,9 +72,56 @@ private:
       }
    };
 
-   /// The index itself. Maps field values (or combinations thereof in case the index is defined for multiple fields) to
-   /// their respsective entry numbers.
-   std::unordered_map<RIndexValue, std::vector<NTupleSize_t>, RIndexValueHash> fIndex;
+   // TODO rename, too similar to RClusterIndex
+   class RNTupleClusterIndex {
+      friend RNTupleIndex;
+
+   private:
+      NTupleSize_t fFirstEntry, fLastEntry;
+
+      RIndexValue fMinIndexValue;
+      RIndexValue fMaxIndexValue;
+
+      std::unique_ptr<RPageSource> fPageSource;
+      std::vector<std::unique_ptr<RFieldBase>> fIndexFields;
+
+      /// The index itself. Maps field values (or combinations thereof in case the index is defined for multiple fields)
+      /// to their respsective entry numbers.
+      std::unordered_map<RIndexValue, std::vector<NTupleSize_t>, RIndexValueHash> fIndex;
+
+   public:
+      RNTupleClusterIndex(const RClusterDescriptor &descriptor,
+                          const std::vector<std::unique_ptr<RFieldBase>> &indexFields, const RPageSource &pageSource)
+         : fPageSource(pageSource.Clone())
+      {
+         fPageSource->Attach();
+
+         fFirstEntry = descriptor.GetFirstEntryIndex();
+         fLastEntry = fFirstEntry + descriptor.GetNEntries();
+
+         fIndexFields.reserve(indexFields.size());
+         for (const auto &field : indexFields) {
+            auto clonedField = field->Clone(field->GetFieldName());
+            CallConnectPageSourceOnField(*clonedField, *fPageSource);
+            fIndexFields.push_back(std::move(clonedField));
+         }
+
+         fMinIndexValue = RIndexValue(
+            std::vector<NTupleIndexValue_t>(fIndexFields.size(), std::numeric_limits<NTupleIndexValue_t>::max()));
+         fMaxIndexValue = RIndexValue(
+            std::vector<NTupleIndexValue_t>(fIndexFields.size(), std::numeric_limits<NTupleIndexValue_t>::min()));
+      }
+
+      RNTupleClusterIndex(const RNTupleClusterIndex &) = delete;
+      RNTupleClusterIndex(RNTupleClusterIndex &&) = default;
+      RNTupleClusterIndex &operator=(const RNTupleClusterIndex &) = delete;
+      RNTupleClusterIndex &operator=(RNTupleClusterIndex &&) = default;
+      ~RNTupleClusterIndex() = default;
+
+      void Build();
+   };
+
+   std::vector<RNTupleClusterIndex> fClusterIndices;
 
    /// The page source belonging to the RNTuple for which to build the index.
    std::unique_ptr<RPageSource> fPageSource;
@@ -129,7 +182,12 @@ public:
    std::size_t GetSize() const
    {
       EnsureBuilt();
-      return fIndex.size();
+
+      auto fnAddSizes = [](std::size_t acc, const RNTupleClusterIndex &clusterIndex) -> std::size_t {
+         return acc + clusterIndex.fIndex.size();
+      };
+
+      return std::accumulate(fClusterIndices.cbegin(), fClusterIndices.cend(), 0, fnAddSizes);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -176,14 +234,14 @@ public:
    ///
    /// \return The entry numbers that corresponds to `valuePtrs`. When no such entry exists, an empty vector is
    /// returned.
-   const std::vector<NTupleSize_t> *GetAllEntryNumbers(const std::vector<void *> &valuePtrs) const;
+   const std::vector<NTupleSize_t> GetAllEntryNumbers(const std::vector<void *> &valuePtrs) const;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Get all entry numbers for the given index.
    ///
    /// \sa GetAllEntryNumbers(std::vector<void *> valuePtrs)
    template <typename... Ts>
-   const std::vector<NTupleSize_t> *GetAllEntryNumbers(Ts... values) const
+   const std::vector<NTupleSize_t> GetAllEntryNumbers(Ts... values) const
    {
       if (sizeof...(Ts) != fIndexFields.size())
          throw RException(R__FAIL("Number of values must match number of indexed fields."));

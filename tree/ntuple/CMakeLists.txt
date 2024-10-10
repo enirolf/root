@@ -91,6 +91,7 @@ DEPENDENCIES
 )
 
 target_link_libraries(ROOTNTuple PRIVATE xxHash::xxHash)
+target_link_libraries(ROOTNTuple PRIVATE tbb)
 
 # Enable RNTuple support for Intel DAOS
 if(daos OR daos_mock)
