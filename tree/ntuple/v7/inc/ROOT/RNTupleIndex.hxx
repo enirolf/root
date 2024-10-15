@@ -158,23 +158,6 @@ public:
    /// Note that in case multiple entries corresponding to the provided index value exist, the first occurrence is
    /// returned. Use RNTupleIndex::GetAllEntryNumbers to get all entries.
    NTupleSize_t GetFirstEntryNumber(const std::vector<void *> &valuePtrs) const;
-
-   /////////////////////////////////////////////////////////////////////////////
-   /// \brief Get the entry number containing the given index value.
-   ///
-   /// \sa GetFirstEntryNumber(std::vector<void *> valuePtrs)
-   template <typename... Ts>
-   NTupleSize_t GetFirstEntryNumber(Ts... values) const
-   {
-      if (sizeof...(Ts) != fIndexFields.size())
-         throw RException(R__FAIL("Number of values must match number of indexed fields."));
-
-      std::vector<void *> valuePtrs;
-      valuePtrs.reserve(sizeof...(Ts));
-      ([&] { valuePtrs.push_back(&values); }(), ...);
-
-      return GetFirstEntryNumber(valuePtrs);
-   }
 };
 } // namespace Internal
 } // namespace Experimental
