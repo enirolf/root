@@ -33,6 +33,39 @@ CastValuePtr(void *valuePtr, const ROOT::Experimental::RFieldBase &field)
 }
 } // anonymous namespace
 
+void ROOT::Experimental::Internal::RNTupleIndex::GetAllEntryNumbers(const std::vector<void *> &valuePtrs,
+                                                                    std::vector<NTupleSize_t> &entryNumbers) const
+{
+   assert(entryNumbers.size() == 0 && "vector for entry numbers not empty");
+
+   if (valuePtrs.size() != fIndexFields.size())
+      throw RException(R__FAIL("Number of value pointers must match number of indexed fields."));
+
+   EnsureBuilt();
+
+   std::vector<std::vector<NTupleIndexValue_t>> entryNumbersPerCluster;
+
+   std::vector<NTupleIndexValue_t> indexFieldValues;
+   indexFieldValues.reserve(fIndexFields.size());
+
+   for (unsigned i = 0; i < valuePtrs.size(); ++i) {
+      indexFieldValues.push_back(CastValuePtr(valuePtrs[i], *fIndexFields[i]));
+   }
+
+   RIndexValue indexValue(indexFieldValues);
+
+   std::vector<NTupleIndexValue_t> indexValues;
+   indexValues.reserve(fIndexFields.size());
+
+   for (unsigned i = 0; i < valuePtrs.size(); ++i) {
+      indexValues.push_back(CastValuePtr(valuePtrs[i], *fIndexFields[i]));
+   }
+
+   auto entryMapping = fIndex.find(RIndexValue(indexValues));
+   if (entryMapping != fIndex.end())
+      entryNumbers = entryMapping->second;
+}
+
 ROOT::Experimental::Internal::RNTupleIndex::RNTupleIndex(const std::vector<std::string> &fieldNames,
                                                          const RPageSource &pageSource)
    : fPageSource(pageSource.Clone())
@@ -115,31 +148,12 @@ void ROOT::Experimental::Internal::RNTupleIndex::Build()
 ROOT::Experimental::NTupleSize_t
 ROOT::Experimental::Internal::RNTupleIndex::GetFirstEntryNumber(const std::vector<void *> &valuePtrs) const
 {
-   const auto entryIndices = GetAllEntryNumbers(valuePtrs);
-   if (!entryIndices)
+   std::vector<NTupleIndexValue_t> entryNumbers;
+   GetAllEntryNumbers(valuePtrs, entryNumbers);
+   if (entryNumbers.empty())
       return kInvalidNTupleIndex;
-   return entryIndices->front();
-}
 
-const std::vector<ROOT::Experimental::NTupleSize_t> *
-ROOT::Experimental::Internal::RNTupleIndex::GetAllEntryNumbers(const std::vector<void *> &valuePtrs) const
-{
-   if (valuePtrs.size() != fIndexFields.size())
-      throw RException(R__FAIL("Number of value pointers must match number of indexed fields."));
-
-   EnsureBuilt();
-
-   std::vector<NTupleIndexValue_t> indexValues;
-   indexValues.reserve(fIndexFields.size());
-
-   for (unsigned i = 0; i < valuePtrs.size(); ++i) {
-      indexValues.push_back(CastValuePtr(valuePtrs[i], *fIndexFields[i]));
-   }
-
-   auto entryNumber = fIndex.find(RIndexValue(indexValues));
-
-   if (entryNumber == fIndex.end())
-      return nullptr;
-
-   return &(entryNumber->second);
+   // TODO(fdegeus) decide what to do when multiple entry numbers have been found (throw, additional signal return
+   // value? etc.)
+   return entryNumbers.front();
 }

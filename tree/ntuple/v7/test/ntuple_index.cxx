@@ -207,53 +207,16 @@ TEST(RNTupleIndex, MultipleFields)
    EXPECT_NE(idx1, idx2);
 
    try {
-      index->GetAllEntryNumbers<std::int16_t, std::uint64_t, std::uint64_t>(0, 2, 3);
+      index->GetFirstEntryNumber<std::int16_t, std::uint64_t, std::uint64_t>(0, 2, 3);
       FAIL() << "querying the index with more values than index values should not be possible";
    } catch (const RException &err) {
       EXPECT_THAT(err.what(), testing::HasSubstr("Number of values must match number of indexed fields."));
    }
 
    try {
-      index->GetAllEntryNumbers({0});
+      index->GetFirstEntryNumber({0});
       FAIL() << "querying the index with fewer values than index values should not be possible";
    } catch (const RException &err) {
       EXPECT_THAT(err.what(), testing::HasSubstr("Number of value pointers must match number of indexed fields."));
    }
-}
-
-TEST(RNTupleIndex, MultipleMatches)
-{
-   FileRaii fileGuard("test_ntuple_index_multiple_matches.root");
-   {
-      auto model = RNTupleModel::Create();
-      auto fldRun = model->MakeField<std::uint64_t>("run");
-
-      auto ntuple = RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard.GetPath());
-
-      *fldRun = 1;
-      for (int i = 0; i < 10; ++i) {
-         if (i > 4)
-            *fldRun = 2;
-         if (i > 7)
-            *fldRun = 3;
-         ntuple->Fill();
-      }
-   }
-
-   auto pageSource = RPageSource::Create("ntuple", fileGuard.GetPath());
-   auto index = RNTupleIndex::Create({"run"}, *pageSource);
-
-   EXPECT_EQ(3ULL, index->GetSize());
-
-   auto entryIdxs = index->GetAllEntryNumbers<std::uint64_t>(1);
-   auto expected = std::vector<std::uint64_t>{0, 1, 2, 3, 4};
-   EXPECT_EQ(expected, *entryIdxs);
-   entryIdxs = index->GetAllEntryNumbers<std::uint64_t>(2);
-   expected = {5, 6, 7};
-   EXPECT_EQ(expected, *entryIdxs);
-   entryIdxs = index->GetAllEntryNumbers<std::uint64_t>(3);
-   expected = {8, 9};
-   EXPECT_EQ(expected, *entryIdxs);
-   entryIdxs = index->GetAllEntryNumbers<std::uint64_t>(4);
-   EXPECT_EQ(nullptr, entryIdxs);
 }

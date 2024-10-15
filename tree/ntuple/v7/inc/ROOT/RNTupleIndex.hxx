@@ -93,6 +93,13 @@ private:
    /// \throws RException If the index has not been built, and can therefore not be used yet.
    void EnsureBuilt() const;
 
+   //////////////////////////////////////////////////////////////////////////
+   /// \brief Get all entry numbers for the given index.
+   ///
+   /// \param[in] valuePtrs A vector of pointers to the index values to look up.
+   /// \param[in] entryNumbers A reference to the vector where the found entry numbers should be written to.
+   void GetAllEntryNumbers(const std::vector<void *> &valuePtrs, std::vector<NTupleSize_t> &entryNumbers) const;
+
 public:
    RNTupleIndex(const RNTupleIndex &other) = delete;
    RNTupleIndex &operator=(const RNTupleIndex &other) = delete;
@@ -167,32 +174,6 @@ public:
       ([&] { valuePtrs.push_back(&values); }(), ...);
 
       return GetFirstEntryNumber(valuePtrs);
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   /// \brief Get all entry numbers for the given index.
-   ///
-   /// \param[in] valuePtrs A vector of pointers to the index values to look up.
-   ///
-   /// \return The entry numbers that corresponds to `valuePtrs`. When no such entry exists, an empty vector is
-   /// returned.
-   const std::vector<NTupleSize_t> *GetAllEntryNumbers(const std::vector<void *> &valuePtrs) const;
-
-   /////////////////////////////////////////////////////////////////////////////
-   /// \brief Get all entry numbers for the given index.
-   ///
-   /// \sa GetAllEntryNumbers(std::vector<void *> valuePtrs)
-   template <typename... Ts>
-   const std::vector<NTupleSize_t> *GetAllEntryNumbers(Ts... values) const
-   {
-      if (sizeof...(Ts) != fIndexFields.size())
-         throw RException(R__FAIL("Number of values must match number of indexed fields."));
-
-      std::vector<void *> valuePtrs;
-      valuePtrs.reserve(sizeof...(Ts));
-      ([&] { valuePtrs.push_back(&values); }(), ...);
-
-      return GetAllEntryNumbers(valuePtrs);
    }
 };
 } // namespace Internal
