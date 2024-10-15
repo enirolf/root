@@ -146,7 +146,7 @@ void ROOT::Experimental::Internal::RNTupleIndex::Build()
 }
 
 ROOT::Experimental::NTupleSize_t
-ROOT::Experimental::Internal::RNTupleIndex::GetFirstEntryNumber(const std::vector<void *> &valuePtrs) const
+ROOT::Experimental::Internal::RNTupleIndex::GetEntryNumber(const std::vector<void *> &valuePtrs) const
 {
    std::vector<NTupleIndexValue_t> entryNumbers;
    GetAllEntryNumbers(valuePtrs, entryNumbers);

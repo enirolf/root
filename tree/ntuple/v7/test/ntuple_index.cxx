@@ -27,7 +27,7 @@ TEST(RNTupleIndex, Basic)
    for (unsigned i = 0; i < ntuple->GetNEntries(); ++i) {
       auto fldValue = fld(i);
       EXPECT_EQ(fldValue, i * 2);
-      EXPECT_EQ(index->GetFirstEntryNumber({&fldValue}), i);
+      EXPECT_EQ(index->GetEntryNumber({&fldValue}), i);
    }
 }
 
@@ -53,7 +53,7 @@ TEST(RNTupleIndex, DeferBuild)
    uint64_t fld = 0;
 
    try {
-      index->GetFirstEntryNumber({&fld});
+      index->GetEntryNumber({&fld});
       FAIL() << "querying an unbuilt index should not be possible";
    } catch (const RException &err) {
       EXPECT_THAT(err.what(), testing::HasSubstr("Index has not been built yet"));
@@ -62,7 +62,7 @@ TEST(RNTupleIndex, DeferBuild)
    index->Build();
    EXPECT_TRUE(index->IsBuilt());
 
-   EXPECT_EQ(0, index->GetFirstEntryNumber({&fld}));
+   EXPECT_EQ(0, index->GetEntryNumber({&fld}));
 }
 
 TEST(RNTupleIndex, InvalidTypes)
@@ -156,10 +156,10 @@ TEST(RNTupleIndex, SparseSecondary)
       auto event = fldEvent(i);
 
       if (i % 2 == 1) {
-         EXPECT_EQ(index->GetFirstEntryNumber({&event}), ROOT::Experimental::kInvalidNTupleIndex)
+         EXPECT_EQ(index->GetEntryNumber({&event}), ROOT::Experimental::kInvalidNTupleIndex)
             << "entry should not be present in the index";
       } else {
-         auto idx = index->GetFirstEntryNumber({&event});
+         auto idx = index->GetEntryNumber({&event});
          EXPECT_EQ(idx, i / 2);
          EXPECT_FLOAT_EQ(fldX(idx), static_cast<float>(idx) / 3.14);
       }
@@ -200,25 +200,25 @@ TEST(RNTupleIndex, MultipleFields)
    for (std::uint64_t i = 0; i < pageSource->GetNEntries(); ++i) {
       run = i / 5;
       event = i % 5;
-      auto entryIdx = index->GetFirstEntryNumber({&run, &event});
+      auto entryIdx = index->GetEntryNumber({&run, &event});
       EXPECT_EQ(fld(entryIdx), fld(i));
    }
 
    run = 1;
    event = 2;
-   auto idx1 = index->GetFirstEntryNumber({&run, &event});
-   auto idx2 = index->GetFirstEntryNumber({&event, &run});
+   auto idx1 = index->GetEntryNumber({&run, &event});
+   auto idx2 = index->GetEntryNumber({&event, &run});
    EXPECT_NE(idx1, idx2);
 
    try {
-      index->GetFirstEntryNumber({&run, &event, &run});
+      index->GetEntryNumber({&run, &event, &run});
       FAIL() << "querying the index with more values than index values should not be possible";
    } catch (const RException &err) {
       EXPECT_THAT(err.what(), testing::HasSubstr("Number of value pointers must match number of indexed fields."));
    }
 
    try {
-      index->GetFirstEntryNumber({&run});
+      index->GetEntryNumber({&run});
       FAIL() << "querying the index with fewer values than index values should not be possible";
    } catch (const RException &err) {
       EXPECT_THAT(err.what(), testing::HasSubstr("Number of value pointers must match number of indexed fields."));

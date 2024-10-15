@@ -123,7 +123,7 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Build the index.
    ///
-   /// Only a built index can be queried (with RNTupleIndex::GetFirstEntryNumber or RNTupleIndex::GetAllEntryNumbers).
+   /// Only a built index can be queried (with RNTupleIndex::GetEntryNumber or RNTupleIndex::GetAllEntryNumbers).
    void Build();
 
    /////////////////////////////////////////////////////////////////////////////
@@ -148,16 +148,13 @@ public:
    bool IsBuilt() const { return fIsBuilt; }
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Get the first entry number containing the given index value.
+   /// \brief Get the (first occurence of an) entry number belonging to the provided index value.
    ///
-   /// \param[in] valuePtrs A vector of pointers to the index values to look up.
+   /// \param[in] valuePtrs A vector of pointers to the index values.
    ///
-   /// \return The first entry number that corresponds to `valuePtrs`. When no such entry exists, `kInvalidNTupleIndex`
-   /// is returned.
-   ///
-   /// Note that in case multiple entries corresponding to the provided index value exist, the first occurrence is
-   /// returned. Use RNTupleIndex::GetAllEntryNumbers to get all entries.
-   NTupleSize_t GetFirstEntryNumber(const std::vector<void *> &valuePtrs) const;
+   /// \return The entry number that corresponds to `valuePtrs`. When no such entry exists, `kInvalidNTupleIndex`
+   /// is returned. When multiple correspondences exist, the first occurrence we come across is returned.
+   NTupleSize_t GetEntryNumber(const std::vector<void *> &valuePtrs) const;
 };
 } // namespace Internal
 } // namespace Experimental
