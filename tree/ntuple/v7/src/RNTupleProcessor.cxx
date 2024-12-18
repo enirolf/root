@@ -152,10 +152,21 @@ ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleSingleProcessor::Adv
       return kInvalidNTupleIndex;
    }
 
-   LoadEntry();
+   LoadEntry(fLocalEntryNumber);
 
    fNEntriesProcessed++;
    return fLocalEntryNumber;
+}
+
+ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleSingleProcessor::LoadEntry(NTupleSize_t entryNumber)
+{
+   Connect();
+
+   if (entryNumber >= fPageSource->GetNEntries())
+      return kInvalidNTupleIndex;
+
+   fEntry->Read(entryNumber);
+   return entryNumber;
 }
 
 void ROOT::Experimental::RNTupleSingleProcessor::Connect()
@@ -245,10 +256,19 @@ ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleChainProcessor::Adva
       fLocalEntryNumber = 0;
    }
 
-   LoadEntry();
+   LoadEntry(fLocalEntryNumber);
 
    fNEntriesProcessed++;
    return fLocalEntryNumber;
+}
+
+ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleChainProcessor::LoadEntry(NTupleSize_t entryNumber)
+{
+   if (entryNumber >= fPageSource->GetNEntries())
+      return kInvalidNTupleIndex;
+
+   fEntry->Read(entryNumber);
+   return entryNumber;
 }
 
 //------------------------------------------------------------------------------
@@ -399,26 +419,29 @@ ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleJoinProcessor::Advan
       return kInvalidNTupleIndex;
    }
 
-   LoadEntry();
+   LoadEntry(fLocalEntryNumber);
 
    fNEntriesProcessed++;
    return fLocalEntryNumber;
 }
 
-void ROOT::Experimental::RNTupleJoinProcessor::LoadEntry()
+ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleJoinProcessor::LoadEntry(NTupleSize_t entryNumber)
 {
+   if (entryNumber >= fPageSource->GetNEntries())
+      return kInvalidNTupleIndex;
+
    // Read the values of the primary ntuple. If no index is used (i.e., the join is aligned), also read the values of
    // auxiliary ntuples.
    for (const auto &[_, fieldContext] : fFieldContexts) {
       if (!fieldContext.IsAuxiliary() || !IsUsingIndex()) {
          auto &value = fEntry->GetValue(fieldContext.fToken);
-         value.Read(fLocalEntryNumber);
+         value.Read(entryNumber);
       }
    }
 
    // If no index is used (i.e., the join is aligned), there's nothing left to do.
    if (!IsUsingIndex())
-      return;
+      return entryNumber;
 
    // Collect the values of the join fields for this entry.
    std::vector<void *> valPtrs;
@@ -454,4 +477,6 @@ void ROOT::Experimental::RNTupleJoinProcessor::LoadEntry()
          value.Read(indexEntryNumbers[fieldContext.fNTupleIdx - 1]);
       }
    }
+
+   return entryNumber;
 }

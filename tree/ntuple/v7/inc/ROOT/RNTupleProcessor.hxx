@@ -139,8 +139,12 @@ protected:
    virtual NTupleSize_t Advance() = 0;
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Fill the entry with values belonging to the current entry number.
-   virtual void LoadEntry() = 0;
+   /// \brief Load the entry identified by the provided entry number.
+   ///
+   /// \param[in] entryNumber Entry number to load
+   ///
+   /// \return `entryNumber` if the entry was successfully loaded, `kInvalidNTupleIndex` otherwise.
+   virtual NTupleSize_t LoadEntry(NTupleSize_t entryNumber) = 0;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Set the local (i.e. relative to the page source currently openend) entry number. Used by
@@ -300,7 +304,11 @@ private:
    NTupleSize_t Advance() final;
 
 public:
-   void LoadEntry() final { fEntry->Read(fLocalEntryNumber); }
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Load the entry identified by the provided entry number.
+   ///
+   /// \sa ROOT::Experimental::RNTupleProcessor::LoadEntry
+   NTupleSize_t LoadEntry(NTupleSize_t entryNumber) final;
 
    void Connect();
 
@@ -319,7 +327,13 @@ class RNTupleChainProcessor : public RNTupleProcessor {
 
 private:
    NTupleSize_t Advance() final;
-   void LoadEntry() final { fEntry->Read(fLocalEntryNumber); }
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Load the entry identified by the provided (global) entry number (i.e., considering all RNTuples in this
+   /// processor).
+   ///
+   /// \sa ROOT::Experimental::RNTupleProcessor::LoadEntry
+   NTupleSize_t LoadEntry(NTupleSize_t entryNumber) final;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Connect an RNTuple for processing.
@@ -366,8 +380,10 @@ private:
    NTupleSize_t Advance() final;
 
    /////////////////////////////////////////////////////////////////////////////
-   /// \brief Fill the entry with values belonging to the current entry number of the primary RNTuple.
-   void LoadEntry() final;
+   /// \brief Load the entry identified by the provided entry number of the primary RNTuple.
+   ///
+   /// \sa ROOT::Experimental::RNTupleProcessor::LoadEntry
+   NTupleSize_t LoadEntry(NTupleSize_t entryNumber) final;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Constructs a new RNTupleJoinProcessor.
