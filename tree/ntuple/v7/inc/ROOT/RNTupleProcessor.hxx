@@ -300,7 +300,11 @@ private:
    NTupleSize_t Advance() final;
 
 public:
-   void LoadEntry() { fEntry->Read(fLocalEntryNumber); }
+   void LoadEntry() final { fEntry->Read(fLocalEntryNumber); }
+
+   void Connect();
+
+   bool IsConnected() const { return fPageSource->GetSharedDescriptorGuard()->GetOnDiskHeaderSize() > 0; }
 };
 
 // clang-format off
