@@ -88,10 +88,10 @@ TEST_F(RNTupleChainProcessorTest, SingleNTuple)
    auto proc = RNTupleProcessor::CreateChain(ntuples);
    for (const auto &entry : *proc) {
       EXPECT_EQ(++nEntries, proc->GetNEntriesProcessed());
-      EXPECT_EQ(nEntries - 1, proc->GetLocalEntryNumber());
+      EXPECT_EQ(nEntries - 1, proc->GetCurrentEntryNumber());
 
       auto x = entry.GetPtr<float>("x");
-      EXPECT_FLOAT_EQ(static_cast<float>(proc->GetLocalEntryNumber()), *x);
+      EXPECT_FLOAT_EQ(static_cast<float>(proc->GetCurrentEntryNumber()), *x);
    }
    EXPECT_EQ(nEntries, 5);
    EXPECT_EQ(nEntries, proc->GetNEntriesProcessed());
@@ -106,9 +106,9 @@ TEST_F(RNTupleChainProcessorTest, Basic)
    for (const auto &entry : *proc) {
       EXPECT_EQ(++nEntries, proc->GetNEntriesProcessed());
       if (proc->GetCurrentNTupleNumber() == 0) {
-         EXPECT_EQ(nEntries - 1, proc->GetLocalEntryNumber());
+         EXPECT_EQ(nEntries - 1, proc->GetCurrentEntryNumber());
       } else {
-         EXPECT_EQ(nEntries - 1, proc->GetLocalEntryNumber() + 5);
+         EXPECT_EQ(nEntries - 1, proc->GetCurrentEntryNumber() + 5);
       }
 
       auto x = entry.GetPtr<float>("x");

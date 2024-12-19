@@ -144,20 +144,6 @@ ROOT::Experimental::RNTupleSingleProcessor::RNTupleSingleProcessor(const RNTuple
    }
 }
 
-ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleSingleProcessor::Advance()
-{
-   Connect();
-
-   if (fLocalEntryNumber == kInvalidNTupleIndex || fLocalEntryNumber >= fPageSource->GetNEntries()) {
-      return kInvalidNTupleIndex;
-   }
-
-   LoadEntry(fLocalEntryNumber);
-
-   fNEntriesProcessed++;
-   return fLocalEntryNumber;
-}
-
 ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleSingleProcessor::LoadEntry(NTupleSize_t entryNumber)
 {
    Connect();
@@ -166,6 +152,9 @@ ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleSingleProcessor::Loa
       return kInvalidNTupleIndex;
 
    fEntry->Read(entryNumber);
+
+   fNEntriesProcessed++;
+   fCurrentEntryNumber = entryNumber;
    return entryNumber;
 }
 
@@ -190,8 +179,12 @@ ROOT::Experimental::RNTupleChainProcessor::RNTupleChainProcessor(const std::vect
    if (fNTuples.empty())
       throw RException(R__FAIL("at least one RNTuple must be provided"));
 
+   fInnerNEntries.assign(ntuples.size(), kInvalidNTupleIndex);
+
    fPageSource = Internal::RPageSource::Create(fNTuples[0].fNTupleName, fNTuples[0].fStorage);
    fPageSource->Attach();
+
+   fInnerNEntries.at(0) = fPageSource->GetNEntries();
 
    if (fPageSource->GetNEntries() == 0) {
       throw RException(R__FAIL("first RNTuple does not contain any entries"));
@@ -221,8 +214,13 @@ ROOT::Experimental::RNTupleChainProcessor::RNTupleChainProcessor(const std::vect
    }
 }
 
-ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleChainProcessor::ConnectNTuple(const RNTupleOpenSpec &ntuple)
+ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleChainProcessor::ConnectNTuple(std::size_t ntupleNumber)
 {
+   if (ntupleNumber >= fNTuples.size())
+      return kInvalidNTupleIndex;
+
+   const auto &ntuple = fNTuples.at(ntupleNumber);
+
    // Before destroying the current page source and replacing it by the new one, we need to reset the concrete fields
    // belonging to the current page source. Otherwise, these concrete fields become invalid.
    for (auto &[_, fieldContext] : fFieldContexts) {
@@ -232,6 +230,8 @@ ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleChainProcessor::Conn
    fPageSource = Internal::RPageSource::Create(ntuple.fNTupleName, ntuple.fStorage);
    fPageSource->Attach();
 
+   fInnerNEntries.at(ntupleNumber) = fPageSource->GetNEntries();
+
    // Now that the new page source has been created and attached, we can create and connect the concrete fields again.
    for (auto &[_, fieldContext] : fFieldContexts) {
       ConnectField(fieldContext, *fPageSource, *fEntry);
@@ -240,34 +240,32 @@ ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleChainProcessor::Conn
    return fPageSource->GetNEntries();
 }
 
-ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleChainProcessor::Advance()
-{
-   if (fLocalEntryNumber == kInvalidNTupleIndex)
-      return kInvalidNTupleIndex;
-
-   if (fLocalEntryNumber >= fPageSource->GetNEntries()) {
-      do {
-         if (++fCurrentNTupleNumber >= fNTuples.size()) {
-            return kInvalidNTupleIndex;
-         }
-         // Skip over empty ntuples we might encounter.
-      } while (ConnectNTuple(fNTuples.at(fCurrentNTupleNumber)) == 0);
-
-      fLocalEntryNumber = 0;
-   }
-
-   LoadEntry(fLocalEntryNumber);
-
-   fNEntriesProcessed++;
-   return fLocalEntryNumber;
-}
-
 ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleChainProcessor::LoadEntry(NTupleSize_t entryNumber)
 {
-   if (entryNumber >= fPageSource->GetNEntries())
-      return kInvalidNTupleIndex;
+   NTupleSize_t localEntryNumber = entryNumber;
+   size_t currentNTuple = fCurrentNTupleNumber;
 
-   fEntry->Read(entryNumber);
+   while (localEntryNumber >= fInnerNEntries.at(currentNTuple)) {
+      localEntryNumber -= fInnerNEntries.at(currentNTuple);
+
+      if (++currentNTuple >= fNTuples.size())
+         return kInvalidNTupleIndex;
+
+      if (fInnerNEntries.at(currentNTuple) == kInvalidNTupleIndex) {
+         auto tmpPageSource =
+            Internal::RPageSource::Create(fNTuples.at(currentNTuple).fNTupleName, fNTuples.at(currentNTuple).fStorage);
+         tmpPageSource->Attach();
+         fInnerNEntries.at(currentNTuple) = tmpPageSource->GetNEntries();
+      }
+   }
+
+   if (currentNTuple != fCurrentNTupleNumber) {
+      ConnectNTuple(currentNTuple);
+   }
+
+   fEntry->Read(localEntryNumber);
+   fNEntriesProcessed++;
+   fCurrentEntryNumber = entryNumber;
    return entryNumber;
 }
 
@@ -413,18 +411,6 @@ void ROOT::Experimental::RNTupleJoinProcessor::ConnectFields()
    }
 }
 
-ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleJoinProcessor::Advance()
-{
-   if (fLocalEntryNumber == kInvalidNTupleIndex || fLocalEntryNumber >= fPageSource->GetNEntries()) {
-      return kInvalidNTupleIndex;
-   }
-
-   LoadEntry(fLocalEntryNumber);
-
-   fNEntriesProcessed++;
-   return fLocalEntryNumber;
-}
-
 ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleJoinProcessor::LoadEntry(NTupleSize_t entryNumber)
 {
    if (entryNumber >= fPageSource->GetNEntries())
@@ -438,6 +424,9 @@ ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleJoinProcessor::LoadE
          value.Read(entryNumber);
       }
    }
+
+   fCurrentEntryNumber = entryNumber;
+   fNEntriesProcessed++;
 
    // If no index is used (i.e., the join is aligned), there's nothing left to do.
    if (!IsUsingIndex())
