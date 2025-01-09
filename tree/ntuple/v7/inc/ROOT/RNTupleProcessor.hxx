@@ -120,6 +120,8 @@ protected:
    // Maps the (qualified) field name to its corresponding field context.
    std::unordered_map<std::string, RFieldContext> fFieldContexts;
 
+   std::unique_ptr<RNTupleModel> fModel;
+
    NTupleSize_t fNEntriesProcessed;  //< Total number of entries processed so far
    std::size_t fCurrentNTupleNumber; //< Index of the currently open RNTuple
    NTupleSize_t fCurrentEntryNumber; //< Entry number within the current ntuple
@@ -143,8 +145,12 @@ protected:
    /// \param[in] entryNumber
    void SetCurrentEntryNumber(NTupleSize_t entryNumber) { fCurrentEntryNumber = entryNumber; }
 
-   RNTupleProcessor(const std::vector<RNTupleOpenSpec> &ntuples)
-      : fNTuples(ntuples), fNEntriesProcessed(0), fCurrentNTupleNumber(0), fCurrentEntryNumber(0)
+   RNTupleProcessor(const std::vector<RNTupleOpenSpec> &ntuples, std::unique_ptr<RNTupleModel> model)
+      : fNTuples(ntuples),
+        fModel(std::move(model)),
+        fNEntriesProcessed(0),
+        fCurrentNTupleNumber(0),
+        fCurrentEntryNumber(0)
    {
    }
 
@@ -170,6 +176,8 @@ public:
    ///
    /// When only one RNTuple is present in the processor chain, the return value is equal to GetGlobalEntryNumber.
    NTupleSize_t GetCurrentEntryNumber() const { return fCurrentEntryNumber; }
+
+   const RNTupleModel &GetModel() const { return *fModel; }
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Returns a reference to the entry used by the processor.
@@ -236,8 +244,8 @@ public:
    RIterator begin() { return RIterator(*this, 0); }
    RIterator end() { return RIterator(*this, kInvalidNTupleIndex); }
 
-   static std::unique_ptr<RNTupleProcessor> Create(const RNTupleOpenSpec &ntuple);
-   static std::unique_ptr<RNTupleProcessor> Create(const RNTupleOpenSpec &ntuple, RNTupleModel &model);
+   static std::unique_ptr<RNTupleProcessor>
+   Create(const RNTupleOpenSpec &ntuple, std::unique_ptr<RNTupleModel> model = nullptr);
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Create a new RNTuple processor chain for vertical concatenation of RNTuples.
@@ -287,7 +295,7 @@ private:
    ///
    /// \param[in] ntuple The source specification (name and storage location) for the RNTuple to process.
    /// \param[in] model The model that specifies which fields should be read by the processor.
-   RNTupleSingleProcessor(const RNTupleOpenSpec &ntuple, RNTupleModel &model);
+   RNTupleSingleProcessor(const RNTupleOpenSpec &ntuple, std::unique_ptr<RNTupleModel> model);
 
 public:
    /////////////////////////////////////////////////////////////////////////////
@@ -355,7 +363,6 @@ class RNTupleJoinProcessor : public RNTupleProcessor {
    friend class RNTupleProcessor;
 
 private:
-   std::unique_ptr<RNTupleModel> fJoinModel;
    std::vector<std::unique_ptr<Internal::RPageSource>> fAuxiliaryPageSources;
    /// Tokens representing the join fields present in the main RNTuple
    std::vector<REntry::RFieldToken> fJoinFieldTokens;
