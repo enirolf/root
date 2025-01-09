@@ -103,15 +103,11 @@ TEST_F(RNTupleChainProcessorTest, Basic)
 
    std::uint64_t nEntries = 0;
    auto proc = RNTupleProcessor::CreateChain(ntuples);
+   auto x = proc->GetEntry().GetPtr<float>("x");
    for (const auto &entry : *proc) {
       EXPECT_EQ(++nEntries, proc->GetNEntriesProcessed());
-      if (proc->GetCurrentNTupleNumber() == 0) {
-         EXPECT_EQ(nEntries - 1, proc->GetCurrentEntryNumber());
-      } else {
-         EXPECT_EQ(nEntries - 1, proc->GetCurrentEntryNumber() + 5);
-      }
+      EXPECT_EQ(nEntries - 1, proc->GetCurrentEntryNumber());
 
-      auto x = entry.GetPtr<float>("x");
       EXPECT_EQ(static_cast<float>(nEntries - 1), *x);
 
       auto y = entry.GetPtr<std::vector<float>>("y");
@@ -201,17 +197,14 @@ TEST_F(RNTupleChainProcessorTest, EmptyNTuples)
 
    std::uint64_t nEntries = 0;
 
-   try {
-      auto proc = RNTupleProcessor::CreateChain(ntuples);
-      FAIL() << "creating a processor where the first RNTuple does not contain any entries should throw";
-   } catch (const ROOT::RException &err) {
-      EXPECT_THAT(err.what(), testing::HasSubstr("first RNTuple does not contain any entries"));
-   }
-
-   // Empty ntuples in the middle are just skipped (as long as their model complies)
-   ntuples = {{fNTupleName, fFileNames[0]}, {fNTupleName, fileGuard.GetPath()}, {fNTupleName, fFileNames[1]}};
+   // Empty ntuples are skipped (as long as their model complies)
+   ntuples = {{fNTupleName, fileGuard.GetPath()},
+              {fNTupleName, fFileNames[0]},
+              {fNTupleName, fileGuard.GetPath()},
+              {fNTupleName, fFileNames[1]}};
 
    auto proc = RNTupleProcessor::CreateChain(ntuples);
+
    for (const auto &entry : *proc) {
       auto x = entry.GetPtr<float>("x");
       EXPECT_EQ(static_cast<float>(nEntries), *x);
