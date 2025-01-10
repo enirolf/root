@@ -176,7 +176,7 @@ ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleSingleProcessor::Loa
 {
    Connect();
 
-   if (entryNumber >= fPageSource->GetNEntries())
+   if (entryNumber >= fNEntries)
       return kInvalidNTupleIndex;
 
    fEntry->Read(entryNumber);
@@ -202,6 +202,7 @@ void ROOT::Experimental::RNTupleSingleProcessor::Connect()
       return;
 
    fPageSource->Attach();
+   fNEntries = fPageSource->GetNEntries();
 
    for (auto &[_, fieldContext] : fFieldContexts) {
       ConnectField(fieldContext, *fPageSource, *fEntry);

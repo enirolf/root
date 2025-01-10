@@ -301,6 +301,8 @@ class RNTupleSingleProcessor : public RNTupleProcessor {
    friend class RNTupleProcessor;
 
 private:
+   NTupleSize_t fNEntries = kInvalidNTupleIndex;
+
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Constructs a new RNTupleProcessor for processing a single RNTuple.
    ///
@@ -312,7 +314,7 @@ public:
    NTupleSize_t GetNEntries() final
    {
       Connect();
-      return fPageSource->GetNEntries();
+      return fNEntries;
    }
 
    const REntry &GetEntry() const final { return *fEntry; }
@@ -327,7 +329,7 @@ public:
 
    void Connect();
 
-   bool IsConnected() const { return fPageSource->GetSharedDescriptorGuard()->GetOnDiskHeaderSize() > 0; }
+   bool IsConnected() const { return fNEntries != kInvalidNTupleIndex; }
 };
 
 // clang-format off
