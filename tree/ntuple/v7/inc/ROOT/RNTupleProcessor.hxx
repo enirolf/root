@@ -77,8 +77,6 @@ class RNTupleProcessor {
 protected:
    std::string fProcessorName;
    std::unique_ptr<REntry> fEntry;
-   std::unique_ptr<Internal::RPageSource> fPageSource;
-
    std::unique_ptr<RNTupleModel> fModel;
 
    NTupleSize_t fNEntriesProcessed = 0;     //< Total number of entries processed so far
@@ -279,6 +277,7 @@ class RNTupleSingleProcessor : public RNTupleProcessor {
    friend class RNTupleProcessor;
 
 private:
+   std::unique_ptr<Internal::RPageSource> fPageSource;
    NTupleSize_t fNEntries = kInvalidNTupleIndex;
 
    /////////////////////////////////////////////////////////////////////////////
