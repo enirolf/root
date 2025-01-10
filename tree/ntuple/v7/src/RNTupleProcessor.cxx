@@ -217,26 +217,6 @@ ROOT::Experimental::RNTupleProcessor::CreateJoin(std::unique_ptr<RNTupleProcesso
    return processor;
 }
 
-void ROOT::Experimental::RNTupleProcessor::ConnectField(RFieldContext &fieldContext, Internal::RPageSource &pageSource,
-                                                        REntry &entry)
-{
-   auto desc = pageSource.GetSharedDescriptorGuard();
-
-   const auto fieldId = desc->FindFieldId(fieldContext.GetProtoField().GetQualifiedFieldName());
-   if (fieldId == kInvalidDescriptorId) {
-      throw RException(R__FAIL("field \"" + fieldContext.GetProtoField().GetQualifiedFieldName() +
-                               "\" not found in current RNTuple"));
-   }
-
-   fieldContext.SetConcreteField();
-   fieldContext.fConcreteField->SetOnDiskId(fieldId);
-   Internal::CallConnectPageSourceOnField(*fieldContext.fConcreteField, pageSource);
-
-   auto valuePtr = entry.GetPtr<void>(fieldContext.fToken);
-   auto value = fieldContext.fConcreteField->BindValue(valuePtr);
-   entry.UpdateValue(fieldContext.fToken, value);
-}
-
 //------------------------------------------------------------------------------
 
 ROOT::Experimental::RNTupleSingleProcessor::RNTupleSingleProcessor(const RNTupleOpenSpec &ntuple,
@@ -299,8 +279,22 @@ void ROOT::Experimental::RNTupleSingleProcessor::Connect()
    fPageSource->Attach();
    fNEntries = fPageSource->GetNEntries();
 
+   auto desc = fPageSource->GetSharedDescriptorGuard();
+
    for (auto &[_, fieldContext] : fFieldContexts) {
-      ConnectField(fieldContext, *fPageSource, *fEntry);
+      const auto fieldId = desc->FindFieldId(fieldContext.GetProtoField().GetQualifiedFieldName());
+      if (fieldId == kInvalidDescriptorId) {
+         throw RException(R__FAIL("field \"" + fieldContext.GetProtoField().GetQualifiedFieldName() +
+                                  "\" not found in current RNTuple"));
+      }
+
+      fieldContext.SetConcreteField();
+      fieldContext.fConcreteField->SetOnDiskId(fieldId);
+      Internal::CallConnectPageSourceOnField(*fieldContext.fConcreteField, *fPageSource);
+
+      auto valuePtr = fEntry->GetPtr<void>(fieldContext.fToken);
+      auto value = fieldContext.fConcreteField->BindValue(valuePtr);
+      fEntry->UpdateValue(fieldContext.fToken, value);
    }
 }
 

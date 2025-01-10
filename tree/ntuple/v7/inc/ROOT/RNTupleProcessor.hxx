@@ -126,10 +126,6 @@ protected:
    NTupleSize_t fCurrentEntryNumber = 0;    //< Entry number within the current ntuple
    std::size_t fCurrentProcessorNumber = 0; //< Number of the currently open inner processor
 
-   /////////////////////////////////////////////////////////////////////////////
-   /// \brief Creates and connects a concrete field to the current page source, based on its proto field.
-   void ConnectField(RFieldContext &fieldContext, Internal::RPageSource &pageSource, REntry &entry);
-
    RNTupleProcessor(std::string_view processorName, std::unique_ptr<RNTupleModel> model)
       : fProcessorName(processorName), fModel(std::move(model))
    {
