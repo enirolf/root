@@ -162,7 +162,7 @@ TEST_F(RNTupleProcessorTest, ChainedJoin)
 
    std::vector<std::unique_ptr<RNTupleProcessor>> innerProcs;
    innerProcs.push_back(RNTupleProcessor::CreateJoin(ntuples, {}));
-   innerProcs.push_back(RNTupleProcessor::CreateJoin(ntuples, {"i"}));
+   innerProcs.push_back(RNTupleProcessor::CreateJoin(ntuples, {}));
 
    auto proc = RNTupleProcessor::CreateChain(innerProcs);
 

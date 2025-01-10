@@ -115,7 +115,6 @@ protected:
    };
 
    std::string fProcessorName;
-   std::vector<RNTupleOpenSpec> fNTuples;
    std::unique_ptr<REntry> fEntry;
    std::unique_ptr<Internal::RPageSource> fPageSource;
    // Maps the (qualified) field name to its corresponding field context.
@@ -183,7 +182,7 @@ public:
    /// \return A reference to the entry used by the processor.
    virtual const REntry &GetEntry() const = 0;
 
-   virtual void SetEntryPointers(const REntry &entry) = 0;
+   virtual void SetEntryPointers(const REntry &entry, std::string_view fieldNamePrefix = "") = 0;
 
    // clang-format off
    /**
@@ -302,6 +301,16 @@ public:
    static std::unique_ptr<RNTupleProcessor>
    CreateJoin(const std::vector<RNTupleOpenSpec> &ntuples, const std::vector<std::string> &joinFields,
               std::string_view processorName, std::vector<std::unique_ptr<RNTupleModel>> models = {});
+
+   static std::unique_ptr<RNTupleProcessor> CreateJoin(std::unique_ptr<RNTupleProcessor> mainProcessor,
+                                                       std::vector<std::unique_ptr<RNTupleProcessor>> &auxProcessors,
+                                                       const std::vector<std::string> &joinFields,
+                                                       std::vector<std::unique_ptr<RNTupleModel>> models = {});
+
+   static std::unique_ptr<RNTupleProcessor>
+   CreateJoin(std::unique_ptr<RNTupleProcessor> mainProcessor,
+              std::vector<std::unique_ptr<RNTupleProcessor>> &auxProcessors, const std::vector<std::string> &joinFields,
+              std::string_view processorName, std::vector<std::unique_ptr<RNTupleModel>> models = {});
 };
 
 // clang-format off
@@ -340,7 +349,7 @@ public:
    /// \sa ROOT::Experimental::RNTupleProcessor::LoadEntry
    NTupleSize_t LoadEntry(NTupleSize_t entryNumber) final;
 
-   void SetEntryPointers(const REntry &entry) final;
+   void SetEntryPointers(const REntry &entry, std::string_view fieldNamePrefix = "") final;
 
    void Connect();
 
@@ -385,7 +394,7 @@ public:
 
    const REntry &GetEntry() const final { return *fEntry; }
 
-   void SetEntryPointers(const REntry &) final;
+   void SetEntryPointers(const REntry &entry, std::string_view fieldNamePrefix = "") final;
 };
 
 // clang-format off
@@ -399,7 +408,11 @@ class RNTupleJoinProcessor : public RNTupleProcessor {
    friend class RNTupleProcessor;
 
 private:
+   std::unique_ptr<RNTupleProcessor> fMainProcessor;
+   std::vector<std::unique_ptr<RNTupleProcessor>> fAuxiliaryProcessors;
+
    std::vector<std::unique_ptr<Internal::RPageSource>> fAuxiliaryPageSources;
+   std::vector<std::unique_ptr<Internal::RPageSource>> fAuxiliaryEntries;
    /// Tokens representing the join fields present in the main RNTuple
    std::vector<REntry::RFieldToken> fJoinFieldTokens;
    std::vector<std::unique_ptr<Internal::RNTupleIndex>> fJoinIndices;
@@ -415,25 +428,23 @@ private:
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Constructs a new RNTupleJoinProcessor.
    ///
-   /// \param[in] mainNTuple The source specification (name and storage location) of the primary RNTuple.
+   /// \param[in] mainProcessor The processor that will drive the entry iteration.
    /// \param[in] model The model that specifies which fields should be read by the processor. The pointer returned by
    /// RNTupleModel::MakeField can be used to access a field's value during the processor iteration. When no model is
    /// specified, it is created from the RNTuple's descriptor.
-   RNTupleJoinProcessor(const RNTupleOpenSpec &mainNTuple, std::string_view processorName,
-                        std::unique_ptr<RNTupleModel> model = nullptr);
+   RNTupleJoinProcessor(std::unique_ptr<RNTupleProcessor> mainProcessor, std::string_view processorName,
+                        std::unique_ptr<RNTupleModel> model);
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Add an auxiliary RNTuple to the processor.
    ///
-   /// \param[in] auxNTuple The source specification (name and storage location) of the auxiliary RNTuple.
+   /// \param[in] auxProcessor The processor that will be joined on the main processor.
    /// \param[in] joinFields The names of the fields used in the join.
    /// \param[in] model The model that specifies which fields should be read by the processor. The pointer returned by
    /// RNTupleModel::MakeField can be used to access a field's value during the processor iteration. When no model is
    /// specified, it is created from the RNTuple's descriptor.
-   void AddAuxiliary(const RNTupleOpenSpec &auxNTuple, const std::vector<std::string> &joinFields,
+   void AddAuxiliary(std::unique_ptr<RNTupleProcessor> auxProcessor, const std::vector<std::string> &joinFields,
                      std::unique_ptr<RNTupleModel> model = nullptr);
-
-   void ConnectFields();
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Populate fJoinFieldTokens with tokens for join fields belonging to the main RNTuple in the join model.
@@ -461,9 +472,9 @@ public:
 
    const REntry &GetEntry() const final { return *fEntry; }
 
-   NTupleSize_t GetNEntries() final { return fPageSource->GetNEntries(); }
+   NTupleSize_t GetNEntries() final { return fMainProcessor->GetNEntries(); }
 
-   void SetEntryPointers(const REntry &) final;
+   void SetEntryPointers(const REntry &entry, std::string_view fieldNamePrefix = "") final;
 };
 
 } // namespace Experimental

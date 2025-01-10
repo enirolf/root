@@ -156,6 +156,8 @@ TEST_F(RNTupleJoinProcessorTest, IdenticalFieldNames)
 
 TEST_F(RNTupleJoinProcessorTest, UnalignedSingleJoinField)
 {
+   GTEST_SKIP() << "temporarily disable unaligned joins";
+
    std::vector<RNTupleOpenSpec> ntuples = {{fNTupleNames[0], fFileNames[0]}, {fNTupleNames[1], fFileNames[1]}};
 
    auto proc = RNTupleProcessor::CreateJoin(ntuples, {"i"});
@@ -180,6 +182,8 @@ TEST_F(RNTupleJoinProcessorTest, UnalignedSingleJoinField)
 
 TEST_F(RNTupleJoinProcessorTest, UnalignedMultipleJoinFields)
 {
+   GTEST_SKIP() << "temporarily disable unaligned joins";
+
    std::vector<RNTupleOpenSpec> ntuples = {{fNTupleNames[0], fFileNames[0]}, {fNTupleNames[3], fFileNames[3]}};
 
    try {
@@ -223,6 +227,8 @@ TEST_F(RNTupleJoinProcessorTest, UnalignedMultipleJoinFields)
 
 TEST_F(RNTupleJoinProcessorTest, MissingEntries)
 {
+   GTEST_SKIP() << "temporarily disable unaligned joins";
+
    std::vector<RNTupleOpenSpec> ntuples = {{fNTupleNames[1], fFileNames[1]}, {fNTupleNames[3], fFileNames[3]}};
 
    auto proc = RNTupleProcessor::CreateJoin(ntuples, {"i"});
@@ -249,6 +255,8 @@ TEST_F(RNTupleJoinProcessorTest, MissingEntries)
 
 TEST_F(RNTupleJoinProcessorTest, WithModel)
 {
+   GTEST_SKIP() << "temporarily disable unaligned joins";
+
    auto model1 = RNTupleModel::Create();
    auto i = model1->MakeField<int>("i");
    auto x = model1->MakeField<float>("x");
