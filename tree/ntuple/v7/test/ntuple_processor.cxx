@@ -181,3 +181,30 @@ TEST_F(RNTupleProcessorTest, ChainedJoin)
    EXPECT_EQ(nEntries, 10);
    EXPECT_EQ(nEntries, proc->GetNEntriesProcessed());
 }
+
+TEST_F(RNTupleProcessorTest, JoinedChain)
+{
+   std::vector<RNTupleOpenSpec> mainNTuples{{fNTupleNames[0], fFileNames[0]}, {fNTupleNames[0], fFileNames[0]}};
+   std::vector<RNTupleOpenSpec> auxNTuples{{fNTupleNames[1], fFileNames[1]}, {fNTupleNames[1], fFileNames[1]}};
+
+   auto mainProc = RNTupleProcessor::CreateChain(mainNTuples);
+   std::vector<std::unique_ptr<RNTupleProcessor>> auxProcs;
+   auxProcs.push_back(RNTupleProcessor::CreateChain(auxNTuples));
+
+   auto proc = RNTupleProcessor::CreateJoin(std::move(mainProc), auxProcs, {});
+
+   int nEntries = 0;
+
+   auto x = proc->GetEntry().GetPtr<float>("x");
+
+   for (const auto &entry [[maybe_unused]] : *proc) {
+      EXPECT_EQ(++nEntries, proc->GetNEntriesProcessed());
+      EXPECT_EQ(nEntries - 1, proc->GetCurrentEntryNumber());
+      EXPECT_EQ(*entry.GetPtr<int>("i"), proc->GetCurrentEntryNumber() % 5);
+
+      EXPECT_EQ(static_cast<float>(*entry.GetPtr<int>("i")), *x);
+      EXPECT_EQ(*x * 2, *entry.GetPtr<float>("ntuple_aux.z"));
+   }
+   EXPECT_EQ(nEntries, 10);
+   EXPECT_EQ(nEntries, proc->GetNEntriesProcessed());
+}
