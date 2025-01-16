@@ -329,17 +329,21 @@ ROOT::Experimental::RNTupleChainProcessor::RNTupleChainProcessor(
 
 ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleChainProcessor::GetNEntries()
 {
-   NTupleSize_t nEntries = 0;
+   if (fNEntries == kInvalidNTupleIndex) {
+      NTupleSize_t nEntries = 0;
 
-   for (unsigned i = 0; i < fInnerProcessors.size(); ++i) {
-      if (fInnerNEntries.at(i) == kInvalidNTupleIndex) {
-         fInnerNEntries.at(i) = fInnerProcessors.at(i)->GetNEntries();
+      for (unsigned i = 0; i < fInnerProcessors.size(); ++i) {
+         if (fInnerNEntries[i] == kInvalidNTupleIndex) {
+            fInnerNEntries[i] = fInnerProcessors[i]->GetNEntries();
+         }
+
+         nEntries += fInnerNEntries[i];
       }
 
-      nEntries += fInnerNEntries.at(i);
+      fNEntries = nEntries;
    }
 
-   return nEntries;
+   return fNEntries;
 }
 
 void ROOT::Experimental::RNTupleChainProcessor::SetEntryPointers(const REntry &entry, std::string_view fieldNamePrefix)
@@ -402,6 +406,8 @@ ROOT::Experimental::RNTupleJoinProcessor::RNTupleJoinProcessor(std::unique_ptr<R
                                                                std::unique_ptr<RNTupleModel> model)
    : RNTupleProcessor(processorName, std::move(model)), fMainProcessor(std::move(mainProcessor))
 {
+   fNEntries = fMainProcessor->GetNEntries();
+
    if (!fModel)
       fModel = fMainProcessor->GetModel().Clone();
 
@@ -520,7 +526,7 @@ void ROOT::Experimental::RNTupleJoinProcessor::SetEntryPointers(const REntry &en
 ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleJoinProcessor::LoadEntry(NTupleSize_t entryNumber)
 {
    // TODO aligned case below here
-   if (entryNumber >= fMainProcessor->GetNEntries())
+   if (entryNumber >= fNEntries)
       return kInvalidNTupleIndex;
 
    fMainProcessor->LoadEntry(entryNumber);

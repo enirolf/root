@@ -79,9 +79,10 @@ protected:
    std::unique_ptr<REntry> fEntry;
    std::unique_ptr<RNTupleModel> fModel;
 
-   NTupleSize_t fNEntriesProcessed = 0;     //< Total number of entries processed so far
-   NTupleSize_t fCurrentEntryNumber = 0;    //< Entry number within the current ntuple
-   std::size_t fCurrentProcessorNumber = 0; //< Number of the currently open inner processor
+   NTupleSize_t fNEntries = kInvalidNTupleIndex; //< Total number of entries in the processor
+   NTupleSize_t fNEntriesProcessed = 0;          //< Total number of entries processed so far
+   NTupleSize_t fCurrentEntryNumber = 0;         //< Entry number within the current ntuple
+   std::size_t fCurrentProcessorNumber = 0;      //< Number of the currently open inner processor
 
    RNTupleProcessor(std::string_view processorName, std::unique_ptr<RNTupleModel> model)
       : fProcessorName(processorName), fModel(std::move(model))
@@ -278,7 +279,6 @@ class RNTupleSingleProcessor : public RNTupleProcessor {
 
 private:
    std::unique_ptr<Internal::RPageSource> fPageSource;
-   NTupleSize_t fNEntries = kInvalidNTupleIndex;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Constructs a new RNTupleProcessor for processing a single RNTuple.
@@ -421,7 +421,7 @@ private:
 public:
    const REntry &GetEntry() const final { return *fEntry; }
 
-   NTupleSize_t GetNEntries() final { return fMainProcessor->GetNEntries(); }
+   NTupleSize_t GetNEntries() final { return fNEntries; }
 
    void SetEntryPointers(const REntry &entry, std::string_view fieldNamePrefix = "") final;
 };
