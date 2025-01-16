@@ -436,6 +436,12 @@ void ROOT::Experimental::RNTupleJoinProcessor::AddAuxiliary(std::unique_ptr<RNTu
 {
    assert(fNEntriesProcessed == 0 && "cannot add auxiliary ntuples after processing has started");
 
+   // If no join fields have been specified, an aligned join is assumed and an index won't be necessary.
+   // TODO !!!!!!!!!!!
+   fIsUsingIndex = joinFields.size() > 0;
+   if (fIsUsingIndex)
+      throw RException(R__FAIL("unaligned joins are temporarily disabled."));
+
    if (!model)
       model = auxProcessor->GetModel().Clone();
 
@@ -500,11 +506,6 @@ void ROOT::Experimental::RNTupleJoinProcessor::AddAuxiliary(std::unique_ptr<RNTu
    }
 
    fEntry.swap(newEntry);
-
-   // If no join fields have been specified, an aligned join is assumed and an index won't be necessary.
-   // TODO !!!!!!!!!!!
-   if (joinFields.size() > 0)
-      throw RException(R__FAIL("unaligned joins are temporarily disabled."));
 }
 
 void ROOT::Experimental::RNTupleJoinProcessor::SetEntryPointers(const REntry &entry, std::string_view fieldNamePrefix)
@@ -531,7 +532,7 @@ ROOT::Experimental::NTupleSize_t ROOT::Experimental::RNTupleJoinProcessor::LoadE
 
    fMainProcessor->LoadEntry(entryNumber);
 
-   if (!IsUsingIndex()) {
+   if (!fIsUsingIndex) {
       for (auto &auxProcessor : fAuxiliaryProcessors) {
          auxProcessor->LoadEntry(entryNumber);
       }

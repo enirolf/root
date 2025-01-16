@@ -377,7 +377,7 @@ private:
    std::vector<REntry::RFieldToken> fJoinFieldTokens;
    std::vector<std::unique_ptr<Internal::RNTupleIndex>> fJoinIndices;
 
-   bool IsUsingIndex() const { return fJoinIndices.size() > 0; }
+   bool fIsUsingIndex = false;
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Load the entry identified by the provided entry number of the primary RNTuple.
