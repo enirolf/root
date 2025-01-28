@@ -112,10 +112,6 @@ private:
    void UpdateValue(RFieldToken token, RFieldBase::RValue &&value) { std::swap(fValues.at(token.fIndex), value); }
    void UpdateValue(RFieldToken token, RFieldBase::RValue &value) { std::swap(fValues.at(token.fIndex), value); }
 
-   /// Return the RValue currently bound to the provided field.
-   RFieldBase::RValue &GetValue(RFieldToken token) { return fValues.at(token.fIndex); }
-   RFieldBase::RValue &GetValue(std::string_view fieldName) { return GetValue(GetToken(fieldName)); }
-
    void Read(NTupleSize_t index)
    {
       for (auto &v : fValues) {
