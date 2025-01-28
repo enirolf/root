@@ -35,7 +35,6 @@ namespace Experimental {
 
 class RClassField;
 class RFieldBase;
-class RNTupleJoinProcessor;
 
 namespace Internal {
 struct RFieldCallbackInjector;
@@ -74,7 +73,6 @@ This is and can only be partially enforced through C++.
 // clang-format on
 class RFieldBase {
    friend class ROOT::Experimental::RClassField;                             // to mark members as artificial
-   friend class ROOT::Experimental::RNTupleJoinProcessor;                    // needs ConstructValue
    friend struct ROOT::Experimental::Internal::RFieldCallbackInjector;       // used for unit tests
    friend struct ROOT::Experimental::Internal::RFieldRepresentationModifier; // used for unit tests
    friend void Internal::CallFlushColumnsOnField(RFieldBase &);
