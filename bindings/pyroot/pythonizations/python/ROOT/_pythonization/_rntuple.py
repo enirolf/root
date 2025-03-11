@@ -169,3 +169,22 @@ def pythonize_RNTupleWriter(klass):
 
     klass.__enter__ = lambda writer: writer
     klass.__exit__ = _RNTupleWriter_exit
+
+def _RNTupleProcessor_Create(ntuple_spec, maybe_model=None):
+    import ROOT
+
+    if (
+        hasattr(type(maybe_model), "__cpp_name__")
+        and type(maybe_model).__cpp_name__ == "ROOT::Experimental::RNTupleModel"
+    ):
+        # In Python, the user cannot create REntries directly from a model, so we can safely clone it and avoid destructively passing the user argument.
+        maybe_model = maybe_model.Clone()
+
+        return ROOT.Experimental.RNTupleProcessor._Create(ntuple_spec, maybe_model)
+    else:
+        return ROOT.Experimental.RNTupleProcessor._Create(ntuple_spec)
+
+@pythonization("RNTupleProcessor", ns="ROOT::Experimental")
+def pythonize_RNTupleProcessor(klass):
+    klass._Create = klass.Create
+    klass.Create = _RNTupleProcessor_Create
