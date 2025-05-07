@@ -151,7 +151,7 @@ ROOT::Experimental::RNTupleSingleProcessor::RNTupleSingleProcessor(RNTupleOpenSp
    }
 
    fModel->Freeze();
-   fEntry = fModel->CreateEntry();
+   fEntry = RNTupleProcessorEntry::Create(fModel->CreateEntry());
 
    for (const auto &value : *fEntry) {
       auto &field = value.GetField();
@@ -181,7 +181,7 @@ ROOT::NTupleSize_t ROOT::Experimental::RNTupleSingleProcessor::LoadEntry(ROOT::N
    return entryNumber;
 }
 
-void ROOT::Experimental::RNTupleSingleProcessor::SetEntryPointers(const ROOT::REntry &entry,
+void ROOT::Experimental::RNTupleSingleProcessor::SetEntryPointers(const RNTupleProcessorEntry &entry,
                                                                   std::string_view fieldNamePrefix)
 {
    for (const auto &value : *fEntry) {
@@ -271,7 +271,7 @@ ROOT::Experimental::RNTupleChainProcessor::RNTupleChainProcessor(
    fInnerNEntries.assign(fInnerProcessors.size(), kInvalidNTupleIndex);
 
    fModel->Freeze();
-   fEntry = fModel->CreateEntry();
+   fEntry = RNTupleProcessorEntry::Create(fModel->CreateEntry());
 
    for (const auto &value : *fEntry) {
       auto &field = value.GetField();
@@ -308,7 +308,7 @@ ROOT::NTupleSize_t ROOT::Experimental::RNTupleChainProcessor::GetNEntries()
    return fNEntries;
 }
 
-void ROOT::Experimental::RNTupleChainProcessor::SetEntryPointers(const ROOT::REntry &entry,
+void ROOT::Experimental::RNTupleChainProcessor::SetEntryPointers(const RNTupleProcessorEntry &entry,
                                                                  std::string_view fieldNamePrefix)
 {
    for (const auto &value : *fEntry) {
@@ -426,7 +426,7 @@ ROOT::Experimental::RNTupleJoinProcessor::RNTupleJoinProcessor(std::unique_ptr<R
    SetModel(std::move(primaryModel), std::move(auxModel));
 
    fModel->Freeze();
-   fEntry = fModel->CreateEntry();
+   fEntry = RNTupleProcessorEntry::Create(fModel->CreateEntry());
 
    for (const auto &value : *fEntry) {
       auto &field = value.GetField();
@@ -503,7 +503,7 @@ void ROOT::Experimental::RNTupleJoinProcessor::SetModel(std::unique_ptr<ROOT::RN
    fModel->Freeze();
 }
 
-void ROOT::Experimental::RNTupleJoinProcessor::SetEntryPointers(const ROOT::REntry &entry,
+void ROOT::Experimental::RNTupleJoinProcessor::SetEntryPointers(const RNTupleProcessorEntry &entry,
                                                                 std::string_view fieldNamePrefix)
 {
    for (const auto &value : *fEntry) {
@@ -527,14 +527,15 @@ ROOT::NTupleSize_t ROOT::Experimental::RNTupleJoinProcessor::LoadEntry(ROOT::NTu
    fNEntriesProcessed++;
 
    if (!fJoinTable) {
-      if (fAuxiliaryProcessor->LoadEntry(entryNumber) == kInvalidNTupleIndex) {
-         throw RException(R__FAIL("entry " + std::to_string(entryNumber) +
-                                  " in the primary processor has no corresponding entry in auxiliary processor \"" +
-                                  fAuxiliaryProcessor->GetProcessorName() + "\""));
-      }
+      if (fAuxiliaryProcessor->LoadEntry(entryNumber) == kInvalidNTupleIndex)
+         fEntry->SetValid(false);
 
       return entryNumber;
    }
+
+   // We need to validate the entry again in order to read the values of the join fields from the primary processor --
+   // which is guaranteed to have valid values.
+   fEntry->SetValid(true);
 
    if (!fJoinTableIsBuilt) {
       fAuxiliaryProcessor->AddEntriesToJoinTable(*fJoinTable);
@@ -553,12 +554,11 @@ ROOT::NTupleSize_t ROOT::Experimental::RNTupleJoinProcessor::LoadEntry(ROOT::NTu
    // corresponding entry.
    const auto entryIdx = fJoinTable->GetEntryIndex(valPtrs);
 
-   if (entryIdx == kInvalidNTupleIndex)
-      throw RException(R__FAIL("entry " + std::to_string(entryNumber) +
-                               " in the primary processor has no corresponding entry in auxiliary processor \"" +
-                               fAuxiliaryProcessor->GetProcessorName() + "\""));
-
-   fAuxiliaryProcessor->LoadEntry(entryIdx);
+   if (entryIdx == kInvalidNTupleIndex) {
+      fEntry->SetValid(false);
+   } else {
+      fAuxiliaryProcessor->LoadEntry(entryIdx);
+   }
 
    return entryNumber;
 }
