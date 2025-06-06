@@ -274,9 +274,9 @@ TEST(RNTupleJoinTable, Partitions)
    }
    auto proc = RNTupleProcessor::CreateChain(openSpec);
 
-   auto i = proc->GetValuePtr<std::uint32_t>("i");
+   auto i = proc->RegisterField<std::uint32_t>("i");
    auto iPtr = i.GetPtr();
-   auto run = proc->GetValuePtr<int16_t>("run");
+   auto run = proc->RegisterField<int16_t>("run");
 
    // When getting the entry indexes for all partitions, we expect multiple resulting entry indexes (i.e., one entry
    // index for each ntuple in the chain).

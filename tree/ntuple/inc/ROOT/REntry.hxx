@@ -88,6 +88,8 @@ private:
       return value.template GetPtr<T>();
    }
 
+   bool HasValue(const std::string &fieldName) { return fFieldName2Token.find(fieldName) != fFieldName2Token.end(); }
+
    void Read(ROOT::NTupleSize_t index)
    {
       for (auto &v : fValues) {

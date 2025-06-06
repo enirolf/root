@@ -85,7 +85,7 @@ TEST_F(RNTupleChainProcessorTest, SingleNTuple)
 {
    auto proc = RNTupleProcessor::CreateChain({{fNTupleName, fFileNames[0]}});
 
-   auto x = proc->GetValuePtr<float>("x");
+   auto x = proc->RegisterField<float>("x");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());
@@ -108,8 +108,8 @@ TEST_F(RNTupleChainProcessorTest, Basic)
       EXPECT_STREQ("my_ntuple", namedProc->GetProcessorName().c_str());
    }
 
-   auto x = proc->GetValuePtr<float>("x");
-   auto y = proc->GetValuePtr<std::vector<float>>("y");
+   auto x = proc->RegisterField<float>("x");
+   auto y = proc->RegisterField<std::vector<float>>("y");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());
@@ -123,59 +123,21 @@ TEST_F(RNTupleChainProcessorTest, Basic)
    EXPECT_EQ(8, proc->GetNEntriesProcessed());
 }
 
-TEST_F(RNTupleChainProcessorTest, WithModel)
-{
-   auto model = RNTupleModel::Create();
-   auto fldX = model->MakeField<float>("x");
-
-   try {
-      RNTupleProcessor::CreateChain({{fNTupleName, fFileNames[0]}, {fNTupleName, fFileNames[1]}}, std::move(model));
-      FAIL() << "processors should only accept bare models";
-   } catch (const ROOT::RException &err) {
-      EXPECT_THAT(err.what(), testing::HasSubstr("only bare RNTupleModels can be used to create an RNTupleProcessor"));
-   }
-}
-
-TEST_F(RNTupleChainProcessorTest, WithBareModel)
-{
-   auto model = RNTupleModel::CreateBare();
-   auto fldY = model->MakeField<std::vector<float>>("y");
-
-   auto proc =
-      RNTupleProcessor::CreateChain({{fNTupleName, fFileNames[0]}, {fNTupleName, fFileNames[1]}}, std::move(model));
-
-   auto y = proc->GetValuePtr<std::vector<float>>("y");
-
-   try {
-      proc->GetValuePtr<float>("x");
-      FAIL() << "fields not present in the model passed to the processor shouldn't be readable";
-   } catch (const ROOT::RException &err) {
-      EXPECT_THAT(err.what(), testing::HasSubstr("invalid field name: x"));
-   }
-
-   for (const auto &idx : *proc) {
-      std::vector<float> yExp = {static_cast<float>(idx), static_cast<float>((idx) * 2)};
-      EXPECT_EQ(yExp, *y);
-   }
-}
-
 TEST_F(RNTupleChainProcessorTest, MissingFields)
 {
    auto proc = RNTupleProcessor::CreateChain({{fNTupleName, fFileNames[0]}, {fNTupleName, fFileNames[2]}});
-   auto iter = proc->begin();
 
-   auto x = proc->GetValuePtr<float>("x");
+   auto x = proc->RegisterField<float>("x");
+   auto y = proc->RegisterField<std::vector<float>>("y");
 
-   while (proc->GetNEntriesProcessed() < 5) {
-      EXPECT_EQ(static_cast<float>(proc->GetNEntriesProcessed() - 1), *x);
-      iter++;
-   }
-
-   try {
-      iter++;
-      FAIL() << "having missing fields in subsequent ntuples should throw";
-   } catch (const ROOT::RException &err) {
-      EXPECT_THAT(err.what(), testing::HasSubstr("field \"y\" not found in the current RNTuple"));
+   for (const auto &idx : *proc) {
+      if (idx < 5) {
+         EXPECT_EQ(static_cast<float>(idx), *x);
+         EXPECT_TRUE(y.HasValue());
+      } else {
+         EXPECT_EQ(static_cast<float>(idx + 3), *x);
+         EXPECT_FALSE(y.HasValue());
+      }
    }
 }
 
@@ -197,7 +159,7 @@ TEST_F(RNTupleChainProcessorTest, EmptyNTuples)
                                               {fNTupleName, fileGuard.GetPath()},
                                               {fNTupleName, fFileNames[1]}});
 
-   auto x = proc->GetValuePtr<float>("x");
+   auto x = proc->RegisterField<float>("x");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(static_cast<float>(idx), *x);
@@ -209,6 +171,7 @@ namespace ROOT::Experimental::Internal {
 struct RNTupleProcessorEntryLoader {
    static ROOT::NTupleSize_t LoadEntry(RNTupleProcessor &processor, ROOT::NTupleSize_t entryNumber)
    {
+      processor.FreezeEntry();
       return processor.LoadEntry(entryNumber);
    }
 };
@@ -220,7 +183,7 @@ TEST_F(RNTupleChainProcessorTest, LoadRandomEntry)
 
    auto proc = RNTupleProcessor::CreateChain({{fNTupleName, fFileNames[0]}, {fNTupleName, fFileNames[1]}});
 
-   auto x = proc->GetValuePtr<float>("x");
+   auto x = proc->RegisterField<float>("x");
 
    RNTupleProcessorEntryLoader::LoadEntry(*proc, 3);
    EXPECT_EQ(3.f, *x);
@@ -259,7 +222,7 @@ TEST_F(RNTupleChainProcessorTest, TMemFile)
 
    auto proc = RNTupleProcessor::CreateChain({{fNTupleName, fFileNames[0]}, {fNTupleName, &memFile}});
 
-   auto x = proc->GetValuePtr<float>("x");
+   auto x = proc->RegisterField<float>("x");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());

@@ -36,6 +36,8 @@ class RNTupleModel;
 class RNTupleWriter;
 
 namespace Experimental {
+class RNTupleProcessor;
+
 namespace Detail {
 class RRawPtrWriteEntry;
 } // namespace Detail
@@ -139,6 +141,7 @@ that were used for writing and are no longer connected to a page sink.
 class RNTupleModel {
    friend ROOT::RFieldZero &Internal::GetFieldZeroOfModel(RNTupleModel &);
    friend Internal::RProjectedFields &Internal::GetProjectedFieldsOfModel(RNTupleModel &);
+   friend class ROOT::Experimental::RNTupleProcessorEntry;
 
 public:
    /// User-provided function that describes the mapping of existing source fields to projected fields in terms

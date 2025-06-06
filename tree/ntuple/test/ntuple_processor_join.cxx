@@ -87,9 +87,9 @@ TEST_F(RNTupleJoinProcessorTest, Aligned)
 {
    auto proc = RNTupleProcessor::CreateJoin({fNTupleNames[1], fFileNames[1]}, {fNTupleNames[2], fFileNames[2]}, {});
 
-   auto i = proc->GetValuePtr<int>("i");
-   auto y = proc->GetValuePtr<std::vector<float>>("y");
-   auto z = proc->GetValuePtr<float>("ntuple3.z");
+   auto i = proc->RegisterField<int>("i");
+   auto y = proc->RegisterField<std::vector<float>>("y");
+   auto z = proc->RegisterField<float>("ntuple3.z");
 
    std::vector<float> yExpected;
 
@@ -110,8 +110,8 @@ TEST_F(RNTupleJoinProcessorTest, IdenticalFieldNames)
 {
    auto proc = RNTupleProcessor::CreateJoin({fNTupleNames[1], fFileNames[1]}, {fNTupleNames[2], fFileNames[2]}, {});
 
-   auto iPrimary = proc->GetValuePtr<int>("i");
-   auto iAux = proc->GetValuePtr<int>("ntuple3.i");
+   auto iPrimary = proc->RegisterField<int>("i");
+   auto iAux = proc->RegisterField<int>("ntuple3.i");
 
    for (auto it = proc->begin(); it != proc->end(); it++) {
       EXPECT_NE(iPrimary.GetPtr(), iAux.GetPtr());
@@ -125,10 +125,10 @@ TEST_F(RNTupleJoinProcessorTest, UnalignedSingleJoinField)
 {
    auto proc = RNTupleProcessor::CreateJoin({fNTupleNames[0], fFileNames[0]}, {fNTupleNames[1], fFileNames[1]}, {"i"});
 
-   auto iPrimary = proc->GetValuePtr<int>("i");
-   auto iAux = proc->GetValuePtr<int>("ntuple2.i");
-   auto x = proc->GetValuePtr<float>("x");
-   auto y = proc->GetValuePtr<std::vector<float>>("ntuple2.y");
+   auto iPrimary = proc->RegisterField<int>("i");
+   auto iAux = proc->RegisterField<int>("ntuple2.i");
+   auto x = proc->RegisterField<float>("x");
+   auto y = proc->RegisterField<std::vector<float>>("ntuple2.y");
 
    std::vector<float> yExpected;
 
@@ -173,9 +173,9 @@ TEST_F(RNTupleJoinProcessorTest, UnalignedMultipleJoinFields)
    auto proc =
       RNTupleProcessor::CreateJoin({fNTupleNames[0], fFileNames[0]}, {fNTupleNames[3], fFileNames[3]}, {"i", "j", "k"});
 
-   auto i = proc->GetValuePtr<int>("i");
-   auto x = proc->GetValuePtr<float>("x");
-   auto a = proc->GetValuePtr<float>("ntuple4.a");
+   auto i = proc->RegisterField<int>("i");
+   auto x = proc->RegisterField<float>("x");
+   auto a = proc->RegisterField<float>("ntuple4.a");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(proc->GetCurrentEntryNumber(), idx);
@@ -192,8 +192,8 @@ TEST_F(RNTupleJoinProcessorTest, MissingEntries)
 {
    auto proc = RNTupleProcessor::CreateJoin({fNTupleNames[1], fFileNames[1]}, {fNTupleNames[3], fFileNames[3]}, {"i"});
 
-   auto i = proc->GetValuePtr<int>("i");
-   auto a = proc->GetValuePtr<float>("ntuple4.a");
+   auto i = proc->RegisterField<int>("i");
+   auto a = proc->RegisterField<float>("ntuple4.a");
    std::vector<float> yExpected;
 
    auto procIter = proc->begin();
@@ -210,62 +210,6 @@ TEST_F(RNTupleJoinProcessorTest, MissingEntries)
    } catch (const ROOT::RException &err) {
       EXPECT_THAT(err.what(), testing::HasSubstr("cannot read \"i\" because the entry it belongs to is invalid"));
    }
-}
-
-TEST_F(RNTupleJoinProcessorTest, WithModel)
-{
-   auto primaryModel = RNTupleModel::Create();
-   auto fldI = primaryModel->MakeField<int>("i");
-   auto fldX = primaryModel->MakeField<float>("x");
-
-   auto auxModel = RNTupleModel::Create();
-   auto fldY = auxModel->MakeField<std::vector<float>>("y");
-
-   try {
-      RNTupleProcessor::CreateJoin({fNTupleNames[0], fFileNames[0]}, {fNTupleNames[1], fFileNames[1]}, {"i"},
-                                   std::move(primaryModel), std::move(auxModel));
-      FAIL() << "processors should only accept bare models";
-   } catch (const ROOT::RException &err) {
-      EXPECT_THAT(err.what(), testing::HasSubstr("only bare RNTupleModels can be used to create an RNTupleProcessor"));
-   }
-}
-
-TEST_F(RNTupleJoinProcessorTest, WithBareModel)
-{
-   auto primaryModel = RNTupleModel::CreateBare();
-   primaryModel->MakeField<int>("i");
-   primaryModel->MakeField<float>("x");
-
-   auto auxModel = RNTupleModel::CreateBare();
-   auxModel->MakeField<std::vector<float>>("y");
-
-   auto proc = RNTupleProcessor::CreateJoin({fNTupleNames[0], fFileNames[0]}, {fNTupleNames[1], fFileNames[1]}, {"i"},
-                                            std::move(primaryModel), std::move(auxModel));
-
-   auto i = proc->GetValuePtr<int>("i");
-   auto x = proc->GetValuePtr<float>("x");
-   auto y = proc->GetValuePtr<std::vector<float>>("ntuple2.y");
-
-   try {
-      proc->GetValuePtr<float>("ntuple2.z");
-      FAIL() << "fields not present in the model passed to the processor shouldn't be readable";
-   } catch (const ROOT::RException &err) {
-      EXPECT_THAT(err.what(), testing::HasSubstr("invalid field name: ntuple2.z"));
-   }
-
-   std::vector<float> yExpected;
-
-   for (const auto &idx : *proc) {
-      EXPECT_EQ(proc->GetCurrentEntryNumber(), idx);
-      EXPECT_EQ(idx * 2, *i);
-
-      EXPECT_FLOAT_EQ(*i * 0.5f, *x);
-
-      yExpected = {static_cast<float>(*i * 0.2), 3.14, static_cast<float>(*i * 1.3)};
-      EXPECT_EQ(yExpected, *y);
-   }
-
-   EXPECT_EQ(5, proc->GetNEntriesProcessed());
 }
 
 TEST_F(RNTupleJoinProcessorTest, TMemFile)
@@ -286,9 +230,9 @@ TEST_F(RNTupleJoinProcessorTest, TMemFile)
 
    auto proc = RNTupleProcessor::CreateJoin({fNTupleNames[0], fFileNames[0]}, {"ntuple_aux", &memFile}, {"i"});
 
-   auto i = proc->GetValuePtr<int>("i");
-   auto x = proc->GetValuePtr<float>("x");
-   auto y = proc->GetValuePtr<std::vector<float>>("ntuple_aux.y");
+   auto i = proc->RegisterField<int>("i");
+   auto x = proc->RegisterField<float>("x");
+   auto y = proc->RegisterField<std::vector<float>>("ntuple_aux.y");
 
    std::vector<float> yExpected;
 

@@ -39,7 +39,7 @@ TEST(RNTupleProcessor, TMemFile)
 
    auto proc = RNTupleProcessor::Create({"ntuple", &memFile});
 
-   auto x = proc->GetValuePtr<float>("x");
+   auto x = proc->RegisterField<float>("x");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());
@@ -69,7 +69,7 @@ TEST(RNTupleProcessor, TDirectory)
 
    auto file = std::make_unique<TFile>(fileGuard.GetPath().c_str());
    auto proc = RNTupleProcessor::Create({"a/b/ntuple", file.get()});
-   auto x = proc->GetValuePtr<float>("x");
+   auto x = proc->RegisterField<float>("x");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());
@@ -142,9 +142,9 @@ TEST_F(RNTupleProcessorTest, Base)
 {
    auto proc = RNTupleProcessor::Create({fNTupleNames[0], fFileNames[0]});
 
-   auto x = proc->GetValuePtr<float>("x");
-   // Check that `GetValuePtr` also works with `void`.
-   auto y = proc->GetValuePtr<void>("y");
+   auto x = proc->RegisterField<float>("x");
+   // Check that `RegisterField` also works with `void`.
+   auto y = proc->RegisterField<void>("y");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx, proc->GetCurrentEntryNumber());
@@ -158,44 +158,18 @@ TEST_F(RNTupleProcessorTest, Base)
    EXPECT_EQ(5, proc->GetNEntriesProcessed());
 }
 
-TEST_F(RNTupleProcessorTest, BaseWithModel)
+TEST_F(RNTupleProcessorTest, RegisterField)
 {
-   auto model = RNTupleModel::Create();
-   auto fldX = model->MakeField<float>("x");
+   auto proc = RNTupleProcessor::Create({fNTupleNames[0], fFileNames[0]});
+
+   proc->begin();
 
    try {
-      RNTupleProcessor::Create({fNTupleNames[0], fFileNames[0]}, std::move(model));
-      FAIL() << "processors should only accept bare models";
+      proc->RegisterField<float>("x");
+      FAIL() << "registering fields after starting the processor should not be possible";
    } catch (const ROOT::RException &err) {
-      EXPECT_THAT(err.what(), testing::HasSubstr("only bare RNTupleModels can be used to create an RNTupleProcessor"));
-   }
-}
-
-TEST_F(RNTupleProcessorTest, BaseWithBareModel)
-{
-   auto model = RNTupleModel::CreateBare();
-   model->MakeField<float>("x");
-
-   auto proc = RNTupleProcessor::Create({fNTupleNames[0], fFileNames[0]}, std::move(model));
-
-   EXPECT_STREQ("ntuple", proc->GetProcessorName().c_str());
-
-   {
-      auto namedProc = RNTupleProcessor::Create({fNTupleNames[0], fFileNames[0]}, nullptr, "my_ntuple");
-      EXPECT_STREQ("my_ntuple", namedProc->GetProcessorName().c_str());
-   }
-
-   auto x = proc->GetValuePtr<float>("x");
-
-   try {
-      proc->GetValuePtr<void>("y");
-      FAIL() << "fields not present in the model passed to the processor shouldn't be readable";
-   } catch (const ROOT::RException &err) {
-      EXPECT_THAT(err.what(), testing::HasSubstr("invalid field name: y"));
-   }
-
-   for (const auto &idx : *proc) {
-      EXPECT_FLOAT_EQ(static_cast<float>(idx), *x);
+      EXPECT_THAT(err.what(),
+                  testing::HasSubstr("cannot register field \"x\", because the processor loop has started"));
    }
 }
 
@@ -222,8 +196,8 @@ TEST_F(RNTupleProcessorTest, ChainedChain)
 
    auto proc = RNTupleProcessor::CreateChain(std::move(innerProcs));
 
-   auto i = proc->GetValuePtr<int>("i");
-   auto x = proc->GetValuePtr<float>("x");
+   auto i = proc->RegisterField<int>("i");
+   auto x = proc->RegisterField<float>("x");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());
@@ -244,9 +218,9 @@ TEST_F(RNTupleProcessorTest, ChainedJoin)
 
    auto proc = RNTupleProcessor::CreateChain(std::move(innerProcs));
 
-   auto i = proc->GetValuePtr<int>("i");
-   auto x = proc->GetValuePtr<float>("x");
-   auto z = proc->GetValuePtr<float>("ntuple_aux.z");
+   auto i = proc->RegisterField<int>("i");
+   auto x = proc->RegisterField<float>("x");
+   auto z = proc->RegisterField<float>("ntuple_aux.z");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());
@@ -269,9 +243,9 @@ TEST_F(RNTupleProcessorTest, ChainedJoinUnaligned)
 
    auto proc = RNTupleProcessor::CreateChain(std::move(innerProcs));
 
-   auto i = proc->GetValuePtr<int>("i");
-   auto x = proc->GetValuePtr<float>("x");
-   auto z = proc->GetValuePtr<float>("ntuple_aux.z");
+   auto i = proc->RegisterField<int>("i");
+   auto x = proc->RegisterField<float>("x");
+   auto z = proc->RegisterField<float>("ntuple_aux.z");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());
@@ -294,9 +268,9 @@ TEST_F(RNTupleProcessorTest, JoinedChain)
 
    auto proc = RNTupleProcessor::CreateJoin(std::move(primaryChain), std::move(auxiliaryChain), {});
 
-   auto i = proc->GetValuePtr<int>("i");
-   auto x = proc->GetValuePtr<float>("x");
-   auto z = proc->GetValuePtr<float>("ntuple_aux.z");
+   auto i = proc->RegisterField<int>("i");
+   auto x = proc->RegisterField<float>("x");
+   auto z = proc->RegisterField<float>("ntuple_aux.z");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());
@@ -319,9 +293,9 @@ TEST_F(RNTupleProcessorTest, JoinedChainUnaligned)
 
    auto proc = RNTupleProcessor::CreateJoin(std::move(primaryChain), std::move(auxiliaryChain), {"i"});
 
-   auto i = proc->GetValuePtr<int>("i");
-   auto x = proc->GetValuePtr<float>("x");
-   auto z = proc->GetValuePtr<float>("ntuple_aux.z");
+   auto i = proc->RegisterField<int>("i");
+   auto x = proc->RegisterField<float>("x");
+   auto z = proc->RegisterField<float>("ntuple_aux.z");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());
@@ -343,10 +317,10 @@ TEST_F(RNTupleProcessorTest, JoinedJoinComposedPrimary)
 
    auto proc = RNTupleProcessor::CreateJoin(std::move(primaryProc), std::move(auxProc), {"i"});
 
-   auto i = proc->GetValuePtr<int>("i");
-   auto x = proc->GetValuePtr<float>("x");
-   auto z1 = proc->GetValuePtr<float>("ntuple_aux.z");
-   auto z2 = proc->GetValuePtr<float>("ntuple_aux2.z");
+   auto i = proc->RegisterField<int>("i");
+   auto x = proc->RegisterField<float>("x");
+   auto z1 = proc->RegisterField<float>("ntuple_aux.z");
+   auto z2 = proc->RegisterField<float>("ntuple_aux2.z");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());
@@ -371,10 +345,10 @@ TEST_F(RNTupleProcessorTest, JoinedJoinComposedAuxiliary)
 
    auto proc = RNTupleProcessor::CreateJoin(std::move(primaryProc), std::move(auxProc), {});
 
-   auto i = proc->GetValuePtr<int>("i");
-   auto x = proc->GetValuePtr<float>("x");
-   auto z1 = proc->GetValuePtr<float>("ntuple_aux.z");
-   auto z2 = proc->GetValuePtr<float>("ntuple_aux.ntuple_aux2.z");
+   auto i = proc->RegisterField<int>("i");
+   auto x = proc->RegisterField<float>("x");
+   auto z1 = proc->RegisterField<float>("ntuple_aux.z");
+   auto z2 = proc->RegisterField<float>("ntuple_aux.ntuple_aux2.z");
 
    for (const auto &idx : *proc) {
       EXPECT_EQ(idx + 1, proc->GetNEntriesProcessed());

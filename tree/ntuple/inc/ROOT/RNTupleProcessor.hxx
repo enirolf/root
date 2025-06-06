@@ -68,6 +68,7 @@ public:
 };
 
 class RNTupleProcessorEntry {
+   friend class RNTupleProcessor;
    friend class RNTupleSingleProcessor;
    friend class RNTupleChainProcessor;
    friend class RNTupleJoinProcessor;
@@ -75,12 +76,22 @@ class RNTupleProcessorEntry {
    friend class RNTupleProcessorValuePtr;
 
 private:
+   /// The proto model contains all available fields. The entry managed by the RNTupleProcessorEntry will only contain a
+   /// subset of these fields (i.e., the ones actually requested by the user).
+   ROOT::RNTupleModel *fProtoModel;
    std::unique_ptr<ROOT::REntry> fEntry;
    bool fIsValid = true;
+   bool fIsFrozen = false;
 
-   RNTupleProcessorEntry(std::unique_ptr<ROOT::REntry> entry) : fEntry(std::move(entry)) {}
+   RNTupleProcessorEntry(ROOT::RNTupleModel &protoModel)
+      : fProtoModel(&protoModel),
+        fEntry(std::unique_ptr<ROOT::REntry>(new ROOT::REntry(protoModel.GetModelId(), protoModel.GetSchemaId())))
+   {
+   }
 
    void SetValid(bool valid) { fIsValid = valid; }
+
+   void SetFrozen(bool frozen) { fIsFrozen = frozen; }
 
    void BindValue(std::string_view fieldName, std::shared_ptr<void> objPtr) { fEntry->BindValue(fieldName, objPtr); }
    void BindValue(ROOT::RFieldToken token, std::shared_ptr<void> objPtr) { fEntry->BindValue(token, objPtr); }
@@ -88,7 +99,7 @@ private:
    template <typename T>
    std::shared_ptr<T> GetPtr(std::string_view fieldName) const
    {
-      if (fIsValid)
+      if (fIsValid && fEntry->HasValue(std::string(fieldName)))
          return fEntry->GetPtr<T>(fieldName);
 
       return nullptr;
@@ -111,10 +122,7 @@ private:
 
    const std::string &FindFieldName(ROOT::RFieldToken token) const { return fEntry->FindFieldName(token); }
 
-   static std::unique_ptr<RNTupleProcessorEntry> Create(std::unique_ptr<ROOT::REntry> entry)
-   {
-      return std::unique_ptr<RNTupleProcessorEntry>(new RNTupleProcessorEntry(std::move(entry)));
-   }
+   void AddField(std::string_view fieldName);
 
 public:
    RNTupleProcessorEntry() = delete;
@@ -125,6 +133,9 @@ public:
    ~RNTupleProcessorEntry() = default;
 
    bool IsValid() const { return fIsValid; }
+   bool IsFrozen() const { return fIsFrozen; }
+
+   bool HasField(const std::string &fieldName) const { return fEntry->HasValue(fieldName); }
 
    ROOT::RFieldToken GetToken(std::string_view fieldName) const { return fEntry->GetToken(fieldName); }
 
@@ -147,7 +158,7 @@ private:
    }
 
 public:
-   bool HasValue() const { return fProcessorEntry->IsValid(); }
+   bool HasValue() const { return fProcessorEntry->IsValid() && fProcessorEntry->GetPtr<void>(fToken) != nullptr; }
 
    std::shared_ptr<T> GetPtr() const
    {
@@ -174,6 +185,7 @@ class RNTupleProcessorValuePtr<void> {
 private:
    const RNTupleProcessorEntry *fProcessorEntry;
    ROOT::RFieldToken fToken;
+   bool fIsValid = true;
 
    RNTupleProcessorValuePtr(std::string_view fieldName, const RNTupleProcessorEntry &processorEntry)
       : fProcessorEntry(&processorEntry), fToken(processorEntry.GetToken(fieldName))
@@ -183,7 +195,7 @@ private:
 public:
    std::shared_ptr<void> GetPtr() const
    {
-      if (fProcessorEntry->IsValid())
+      if (fIsValid)
          return fProcessorEntry->GetPtr<void>(fToken);
 
       return nullptr;
@@ -230,8 +242,9 @@ class RNTupleProcessor {
 
 protected:
    std::string fProcessorName;
-   std::unique_ptr<RNTupleProcessorEntry> fEntry;
+   std::unique_ptr<ROOT::RNTupleModel> fProtoModel;
    std::unique_ptr<ROOT::RNTupleModel> fModel;
+   std::unique_ptr<RNTupleProcessorEntry> fEntry;
 
    /// Total number of entries. Only to be used internally by the processor, not meant to be exposed in the public
    /// interface.
@@ -266,6 +279,23 @@ protected:
    /// \param[in] entryOffset In case the entry mapping is added from a chain, the offset of the entry indexes to use
    /// with respect to the processor's position in the chain.
    virtual void AddEntriesToJoinTable(Internal::RNTupleJoinTable &joinTable, ROOT::NTupleSize_t entryOffset = 0) = 0;
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Add a new field to the processor's entry.
+   ///
+   /// \param[in] fieldName Name of the field to add.
+   virtual void AddFieldToEntry(std::string_view fieldName) = 0;
+
+   /////////////////////////////////////////////////////////////////////////////
+   /// \brief Freeze the processor's entry, so fields cannot be added to it anymore.
+   void FreezeEntry()
+   {
+      if (fEntry->IsFrozen())
+         return;
+
+      SetEntryPointers(*fEntry);
+      fEntry->SetFrozen(true);
+   }
 
    virtual void PrintStructureImpl(std::ostream &output) const = 0;
 
@@ -315,11 +345,16 @@ public:
 
    /////////////////////////////////////////////////////////////////////////////
    /// \brief Get the model used by the processor.
-   const ROOT::RNTupleModel &GetModel() const { return *fModel; }
+   const ROOT::RNTupleModel &GetProtoModel() const { return *fProtoModel; }
 
    template <typename T>
-   RNTupleProcessorValuePtr<T> GetValuePtr(std::string_view fieldName) const
+   RNTupleProcessorValuePtr<T> RegisterField(std::string_view fieldName)
    {
+      if (fEntry->fIsFrozen) {
+         throw RException(R__FAIL("cannot register field \"" + std::string(fieldName) +
+                                  "\", because the processor loop has started"));
+      }
+      AddFieldToEntry(fieldName);
       return RNTupleProcessorValuePtr<T>(fieldName, *fEntry);
    }
 
@@ -348,6 +383,8 @@ public:
       RIterator(RNTupleProcessor &processor, ROOT::NTupleSize_t entryNumber)
          : fProcessor(processor), fCurrentEntryNumber(entryNumber)
       {
+         fProcessor.FreezeEntry();
+
          // This constructor is called with kInvalidNTupleIndex for RNTupleProcessor::end(). In that case, we already
          // know there is nothing to load.
          if (fCurrentEntryNumber != ROOT::kInvalidNTupleIndex) {
@@ -511,6 +548,8 @@ private:
    /// \sa ROOT::Experimental::RNTupleProcessor::AddEntriesToJoinTable
    void AddEntriesToJoinTable(Internal::RNTupleJoinTable &joinTable, ROOT::NTupleSize_t entryOffset = 0) final;
 
+   void AddFieldToEntry(std::string_view fieldName) final { fEntry->AddField(fieldName); }
+
    void PrintStructureImpl(std::ostream &output) const final;
 
    /////////////////////////////////////////////////////////////////////////////
@@ -528,7 +567,7 @@ public:
    RNTupleSingleProcessor(RNTupleSingleProcessor &&) = delete;
    RNTupleSingleProcessor &operator=(const RNTupleSingleProcessor &) = delete;
    RNTupleSingleProcessor &operator=(RNTupleSingleProcessor &&) = delete;
-   ~RNTupleSingleProcessor() override { fModel.release(); };
+   ~RNTupleSingleProcessor() override { fProtoModel.release(); };
 };
 
 // clang-format off
@@ -567,6 +606,8 @@ private:
    ///
    /// \sa ROOT::Experimental::RNTupleProcessor::AddEntriesToJoinTable
    void AddEntriesToJoinTable(Internal::RNTupleJoinTable &joinTable, ROOT::NTupleSize_t entryOffset = 0) final;
+
+   void AddFieldToEntry(std::string_view fieldName) final;
 
    void PrintStructureImpl(std::ostream &output) const final;
 
@@ -640,7 +681,9 @@ private:
    /// To prevent field name clashes when one or more models have fields with duplicate names, fields from each
    /// auxiliary model are stored as a anonymous record, and subsequently registered as subfields in the join model.
    /// This way, they can be accessed from the processor's entry as `auxNTupleName.fieldName`.
-   void SetModel(std::unique_ptr<ROOT::RNTupleModel> primaryModel, std::unique_ptr<ROOT::RNTupleModel> auxModel);
+   void SetProtoModel(std::unique_ptr<ROOT::RNTupleModel> primaryModel, std::unique_ptr<ROOT::RNTupleModel> auxModel);
+
+   void AddFieldToEntry(std::string_view fieldName) final;
 
    void PrintStructureImpl(std::ostream &output) const final;
 
