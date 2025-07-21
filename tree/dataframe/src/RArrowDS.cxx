@@ -109,6 +109,20 @@ private:
       return (void *)(&cache);
    }
 
+   template <typename T>
+   void *getTypeErasedPtrFrom(arrow::LargeListArray const &array, int32_t entry, RVec<T> &cache)
+   {
+      using ArrowType = typename RootConversionTraits<T>::ArrowType;
+      using ArrayType = typename arrow::TypeTraits<ArrowType>::ArrayType;
+      auto values = reinterpret_cast<ArrayType *>(array.values().get());
+      auto offset = array.value_offset(entry);
+      // Here the cast to void* is a worksround while we figure out the
+      // issues we have with long long types, signed and unsigned.
+      RVec<T> tmp(reinterpret_cast<T *>((void *)values->raw_values()) + offset, array.value_length(entry));
+      std::swap(cache, tmp);
+      return (void *)(&cache);
+   }
+
 public:
    ArrayPtrVisitor(void **result) : fResult{result}, fCurrentEntry{0} {}
 
@@ -167,6 +181,37 @@ public:
    }
 
    arrow::Status Visit(arrow::ListArray const &array) final
+   {
+      switch (array.value_type()->id()) {
+      case arrow::Type::FLOAT: {
+         *fResult = getTypeErasedPtrFrom(array, fCurrentEntry, fCachedRVecFloat);
+         return arrow::Status::OK();
+      }
+      case arrow::Type::DOUBLE: {
+         *fResult = getTypeErasedPtrFrom(array, fCurrentEntry, fCachedRVecDouble);
+         return arrow::Status::OK();
+      }
+      case arrow::Type::UINT32: {
+         *fResult = getTypeErasedPtrFrom(array, fCurrentEntry, fCachedRVecUInt);
+         return arrow::Status::OK();
+      }
+      case arrow::Type::UINT64: {
+         *fResult = getTypeErasedPtrFrom(array, fCurrentEntry, fCachedRVecULong64);
+         return arrow::Status::OK();
+      }
+      case arrow::Type::INT32: {
+         *fResult = getTypeErasedPtrFrom(array, fCurrentEntry, fCachedRVecInt);
+         return arrow::Status::OK();
+      }
+      case arrow::Type::INT64: {
+         *fResult = getTypeErasedPtrFrom(array, fCurrentEntry, fCachedRVecLong64);
+         return arrow::Status::OK();
+      }
+      default: return arrow::Status::TypeError("Type not supported");
+      }
+   }
+
+   arrow::Status Visit(arrow::LargeListArray const &array) final
    {
       switch (array.value_type()->id()) {
       case arrow::Type::FLOAT: {
@@ -376,6 +421,7 @@ public:
    arrow::Status Visit(const arrow::StringType &) override { return arrow::Status::OK(); }
    arrow::Status Visit(const arrow::BooleanType &) override { return arrow::Status::OK(); }
    arrow::Status Visit(const arrow::ListType &) override { return arrow::Status::OK(); }
+   arrow::Status Visit(const arrow::LargeListType &) override { return arrow::Status::OK(); }
 
    using ::arrow::TypeVisitor::Visit;
 };
