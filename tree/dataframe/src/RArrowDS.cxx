@@ -91,6 +91,7 @@ private:
    RVec<UInt_t> fCachedRVecUInt;
    RVec<Long64_t> fCachedRVecLong64;
    RVec<Int_t> fCachedRVecInt;
+   RVec<bool> fCachedRVecBool;
    std::string fCachedString;
    /// The entry in the array which should be looked up.
    ULong64_t fCurrentEntry;
@@ -109,6 +110,18 @@ private:
       return (void *)(&cache);
    }
 
+   void *getTypeErasedBoolPtrFrom(arrow::ListArray const &array, int32_t entry, RVec<bool> &cache)
+   {
+      using ArrayType = arrow::BooleanArray;
+      auto values = reinterpret_cast<ArrayType *>(array.values().get());
+      auto offset = array.value_offset(entry);
+      // Here the cast to void* is a worksround while we figure out the
+      // issues we have with long long types, signed and unsigned.
+      RVec<bool> tmp(reinterpret_cast<bool *>(values->values().get()) + offset, array.value_length(entry));
+      std::swap(cache, tmp);
+      return (void *)(&cache);
+   }
+
    template <typename T>
    void *getTypeErasedPtrFrom(arrow::LargeListArray const &array, int32_t entry, RVec<T> &cache)
    {
@@ -119,6 +132,18 @@ private:
       // Here the cast to void* is a worksround while we figure out the
       // issues we have with long long types, signed and unsigned.
       RVec<T> tmp(reinterpret_cast<T *>((void *)values->raw_values()) + offset, array.value_length(entry));
+      std::swap(cache, tmp);
+      return (void *)(&cache);
+   }
+
+   void *getTypeErasedBoolPtrFrom(arrow::LargeListArray const &array, int32_t entry, RVec<bool> &cache)
+   {
+      using ArrayType = arrow::BooleanArray;
+      auto values = reinterpret_cast<ArrayType *>(array.values().get());
+      auto offset = array.value_offset(entry);
+      // Here the cast to void* is a worksround while we figure out the
+      // issues we have with long long types, signed and unsigned.
+      RVec<bool> tmp(reinterpret_cast<bool *>(values->values().get()) + offset, array.value_length(entry));
       std::swap(cache, tmp);
       return (void *)(&cache);
    }
@@ -207,6 +232,10 @@ public:
          *fResult = getTypeErasedPtrFrom(array, fCurrentEntry, fCachedRVecLong64);
          return arrow::Status::OK();
       }
+      case arrow::Type::BOOL: {
+         *fResult = getTypeErasedBoolPtrFrom(array, fCurrentEntry, fCachedRVecBool);
+         return arrow::Status::OK();
+      }
       default: return arrow::Status::TypeError("Type not supported");
       }
    }
@@ -236,6 +265,10 @@ public:
       }
       case arrow::Type::INT64: {
          *fResult = getTypeErasedPtrFrom(array, fCurrentEntry, fCachedRVecLong64);
+         return arrow::Status::OK();
+      }
+      case arrow::Type::BOOL: {
+         *fResult = getTypeErasedBoolPtrFrom(array, fCurrentEntry, fCachedRVecBool);
          return arrow::Status::OK();
       }
       default: return arrow::Status::TypeError("Type not supported");
