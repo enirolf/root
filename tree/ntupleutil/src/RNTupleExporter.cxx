@@ -114,7 +114,8 @@ int CountPages(const ROOT::RNTupleDescriptor &desc, std::span<const RColumnExpor
 RNTupleExporter::RPagesResult
 RNTupleExporter::ExportPages(ROOT::Internal::RPageSource &source, const RPagesOptions &options)
 {
-   if ((options.fFlags & RPagesOptions::kIncludeChecksums) && (options.fFlags & RPagesOptions::kDecompress))
+   if ((options.fFlags & RPagesOptions::kIncludeChecksums) &&
+       (options.fFlags & (RPagesOptions::kDecompress | RPagesOptions::kUnpack)))
       throw ROOT::RException(R__FAIL("exporting checksums is incompatible with decompressing the pages"));
 
    RPagesResult res = {};
@@ -182,13 +183,22 @@ RNTupleExporter::ExportPages(ROOT::Internal::RPageSource &source, const RPagesOp
 
             // dump the page
             const auto *pageBuf = static_cast<const char *>(onDiskPage->GetAddress());
-            if (options.fFlags & RPagesOptions::kDecompress) {
+            if (options.fFlags & (RPagesOptions::kDecompress | RPagesOptions::kUnpack)) {
                const auto nbytesPacked = colElement->GetPackedSize(pageInfo.GetNElements());
                const auto nbytesData = pageInfo.GetLocator().GetNBytesOnStorage();
                if (unzipBuf.size() < nbytesPacked)
                   unzipBuf.resize(nbytesPacked);
                ROOT::Internal::RNTupleDecompressor::Unzip(pageBuf, nbytesData, nbytesPacked, &unzipBuf[0]);
-               outFile.write(unzipBuf.data(), nbytesPacked);
+
+               if (options.fFlags & RPagesOptions::kUnpack) {
+                  const auto nbytesUnpacked = colElement->GetSize() * pageInfo.GetNElements();
+                  std::vector<char> unpackBuf(nbytesUnpacked);
+                  colElement->Unpack(&unpackBuf[0], unzipBuf.data(), pageInfo.GetNElements());
+                  outFile.write(unpackBuf.data(), nbytesUnpacked);
+               } else {
+                  outFile.write(unzipBuf.data(), nbytesPacked);
+               }
+
             } else {
                const bool includeChecksum =
                   (options.fFlags & RPagesOptions::kIncludeChecksums) != 0 && pageInfo.HasChecksum();

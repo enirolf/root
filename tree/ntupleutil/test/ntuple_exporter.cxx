@@ -276,6 +276,34 @@ TEST(RNTupleExporter, ExportUncompresLowPrecisionFloats)
    EXPECT_EQ(memcmp(fltBytes.data(), kTruncFltBytes, fltBytes.length()), 0);
 }
 
+TEST(RNTupleExporter, ExportToFilesUnpacked)
+{
+   // Decompress, unpack and dump pages of a regular RNTuple. This test uses low precision floats in the original
+   // ntuple, and we expect them to appear as 32-bit floats in the exported page data.
+   FileRaii fileGuard("ntuple_exporter_unpacked.root");
+
+   CreateExportRNTuple(fileGuard.GetPath(), kWithChecksums, /*compression=*/505, /*truncateFloat=*/true);
+
+   auto source = RPageSource::Create("ntuple", fileGuard.GetPath());
+   auto opts = RNTupleExporter::RPagesOptions();
+   opts.fFlags |= RNTupleExporter::RPagesOptions::kIncludeChecksums | RNTupleExporter::RPagesOptions::kUnpack;
+   EXPECT_THROW(RNTupleExporter::ExportPages(*source, opts), ROOT::RException);
+   opts.fFlags &= ~RNTupleExporter::RPagesOptions::kIncludeChecksums;
+   auto res = RNTupleExporter::ExportPages(*source, opts);
+
+   EXPECT_EQ(res.fExportedFileNames.size(), 3);
+
+   FileRaii pageFlt("./cluster_0_flt-0_page_0_elems_10_comp_505.page");
+
+   EXPECT_TRUE(std::find(res.fExportedFileNames.begin(), res.fExportedFileNames.end(), pageFlt.GetPath()) !=
+               res.fExportedFileNames.end());
+
+   // Check that the file contents correspond to 32-bit float data
+   auto fltBytes = ReadFileToString(pageFlt.GetPath().c_str());
+   EXPECT_EQ(fltBytes.length(), kFltBytesLenNoChecksums);
+   EXPECT_EQ(memcmp(fltBytes.data(), kFltBytes, fltBytes.length()), 0);
+}
+
 TEST(RNTupleExporter, ExportToFilesManyPages)
 {
    FileRaii fileGuard("ntuple_exporter_manypages.root");

@@ -52,6 +52,8 @@ public:
          kShowProgressBar = 0x2,
          /// If enabled, uncompress (but don't unpack) the page (mutually exclusive with kIncludeChecksums)
          kDecompress = 0x04,
+         /// If enabled, uncompress and unpack the page (mutually exclusive with kIncludeChecksums)
+         kUnpack = 0x08,
 
          kDefaults = kShowProgressBar
       };
