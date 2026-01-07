@@ -88,6 +88,8 @@ public:
 
    void Finalize();
 
+   std::optional<std::string> GetProjectionSourceFieldName(const std::string &fieldName);
+
    std::string GetActionName() { return "Snapshot"; }
 
    ROOT::RDF::SampleCallback_t GetSampleCallback() final

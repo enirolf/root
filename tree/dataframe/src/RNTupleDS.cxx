@@ -502,11 +502,22 @@ ROOT::RDF::RNTupleDS::GetColumnReaders(unsigned int slot, std::string_view name,
    ROOT::RFieldBase *field = GetFieldWithTypeChecks(name, tid);
    assert(field != nullptr);
 
+   auto fieldId = field->GetOnDiskId();
    // Map the field's and subfields' IDs to qualified names so that we can later connect the fields to
    // other page sources from the chain
-   fFieldId2QualifiedName[field->GetOnDiskId()] = fPrincipalDescriptor.GetQualifiedFieldName(field->GetOnDiskId());
+   fFieldId2QualifiedName[fieldId] = fPrincipalDescriptor.GetQualifiedFieldName(fieldId);
+   if (auto projectionSourceId = fPrincipalDescriptor.GetFieldDescriptor(fieldId).GetProjectionSourceId();
+       projectionSourceId != ROOT::kInvalidNTupleIndex) {
+      fFieldName2ProjectionSource[fPrincipalDescriptor.GetQualifiedFieldName(fieldId)] = projectionSourceId;
+   }
+
    for (const auto &s : *field) {
-      fFieldId2QualifiedName[s.GetOnDiskId()] = fPrincipalDescriptor.GetQualifiedFieldName(s.GetOnDiskId());
+      auto subfieldId = s.GetOnDiskId();
+      fFieldId2QualifiedName[subfieldId] = fPrincipalDescriptor.GetQualifiedFieldName(subfieldId);
+      if (auto projectionSourceId = fPrincipalDescriptor.GetFieldDescriptor(subfieldId).GetProjectionSourceId();
+          projectionSourceId != ROOT::kInvalidNTupleIndex) {
+         fFieldName2ProjectionSource[fPrincipalDescriptor.GetQualifiedFieldName(subfieldId)] = projectionSourceId;
+      }
    }
 
    auto reader = std::make_unique<ROOT::Internal::RDF::RNTupleColumnReader>(this, field);

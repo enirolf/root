@@ -904,7 +904,22 @@ void ROOT::Internal::RDF::UntypedSnapshotRNTupleHelper::Initialize()
    auto model = ROOT::RNTupleModel::CreateBare();
    auto nFields = fOutputFieldNames.size();
    fFieldTokens.resize(nFields);
+   // It only makes sense to perform this check when the input dataframe is from an RNTuple, since this is the only data
+   // source that has projected fields.
+   bool performProjectionCheck =
+      fInputLoopManager->GetDataSource() && fInputLoopManager->GetDataSource()->GetLabel() == "RNTupleDS";
+   // Index of the projected field in fOutputFieldNames plus the name of the field they project to
+   std::vector<std::pair<decltype(nFields), std::string>> projectedFields;
    for (decltype(nFields) i = 0; i < nFields; i++) {
+      if (performProjectionCheck) {
+         // Defer adding projected fields until after all regular fields have been added, in case the field names of the
+         // projection sources are specified *after* the projected field.
+         if (auto projectionSourceName = GetProjectionSourceFieldName(fOutputFieldNames[i])) {
+            projectedFields.emplace_back(i, *projectionSourceName);
+            continue;
+         }
+      }
+
       // Need to retrieve the type of every field to create as a string
       // If the input type for a field does not have RTTI, internally we store it as the tag UseNativeDataType. When
       // that is detected, we need to ask the data source which is the type name based on the on-disk information.
@@ -914,6 +929,33 @@ void ROOT::Internal::RDF::UntypedSnapshotRNTupleHelper::Initialize()
                                : ROOT::Internal::RDF::TypeID2TypeName(*fInputColumnTypeIDs[i]);
       model->AddField(ROOT::RFieldBase::Create(fOutputFieldNames[i], typeName).Unwrap());
       fFieldTokens[i] = model->GetToken(fOutputFieldNames[i]);
+   }
+
+   for (const auto &[i, sourceName] : projectedFields) {
+      const auto typeName = *fInputColumnTypeIDs[i] == typeid(ROOT::Internal::RDF::UseNativeDataType)
+                               ? ROOT::Internal::RDF::GetTypeNameWithOpts(*fInputLoopManager->GetDataSource(),
+                                                                          fInputFieldNames[i], fOptions.fVector2RVec)
+                               : ROOT::Internal::RDF::TypeID2TypeName(*fInputColumnTypeIDs[i]);
+
+      auto field = ROOT::RFieldBase::Create(fOutputFieldNames[i], typeName).Unwrap();
+
+      std::unordered_map<std::string, std::string> projectionMap;
+      projectionMap.emplace(field->GetFieldName(), sourceName);
+
+      // Map the field's subfields to their projection sources
+      for (const auto &subField : *field) {
+         auto subFieldSourceName = GetProjectionSourceFieldName(subField.GetQualifiedFieldName());
+         if (!subFieldSourceName) {
+            throw std::runtime_error("Snapshot: failed to recreate RNTuple projection for field \"" +
+                                     field->GetQualifiedFieldName() + "\", because source field for subfield \"" +
+                                     subField.GetFieldName() + "\" is unknown");
+         }
+         projectionMap.emplace(subField.GetQualifiedFieldName(), *subFieldSourceName);
+      }
+
+      model->AddProjectedField(std::move(field),
+                               [&projectionMap](const std::string &s) { return projectionMap.at(s); });
+      fFieldTokens[i] = model->GetToken(sourceName);
    }
    model->Freeze();
 
@@ -943,6 +985,19 @@ void ROOT::Internal::RDF::UntypedSnapshotRNTupleHelper::Initialize()
    // The RNTupleParallelWriter has exclusive access to the underlying TFile, no further synchronization is needed for
    // calls to Fill() (in Exec) and FlushCluster() (in FinalizeTask).
    fWriter = ROOT::RNTupleParallelWriter::Append(std::move(model), fNTupleName, *outputDir, writeOptions);
+}
+
+std::optional<std::string>
+ROOT::Internal::RDF::UntypedSnapshotRNTupleHelper::GetProjectionSourceFieldName(const std::string &fieldName)
+{
+   auto inputDS = static_cast<ROOT::RDF::RNTupleDS *>(fInputLoopManager->GetDataSource());
+
+   auto sourceFieldId = inputDS->fFieldName2ProjectionSource.find(fieldName);
+   if (sourceFieldId != inputDS->fFieldName2ProjectionSource.end()) {
+      return inputDS->fFieldId2QualifiedName[sourceFieldId->second];
+   }
+
+   return std::nullopt;
 }
 
 void ROOT::Internal::RDF::UntypedSnapshotRNTupleHelper::InitTask(TTreeReader *, unsigned int slot)

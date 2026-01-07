@@ -37,6 +37,8 @@ namespace ROOT {
 class RDataFrame;
 }
 namespace ROOT::Internal::RDF {
+class UntypedSnapshotRNTupleHelper;
+
 /**
  * \brief Internal overload of the function that allows passing a range of entries
  *
@@ -73,6 +75,7 @@ class RPageSource;
 namespace ROOT::RDF {
 class RNTupleDS final : public ROOT::RDF::RDataSource {
    friend class ROOT::Internal::RDF::RNTupleColumnReader;
+   friend class ROOT::Internal::RDF::UntypedSnapshotRNTupleHelper;
 
    /// The PrepareNextRanges() method populates the fNextRanges list with REntryRangeDS records.
    /// The GetEntryRanges() swaps fNextRanges and fCurrentRanges and uses the list of
@@ -124,6 +127,8 @@ class RNTupleDS final : public ROOT::RDF::RDataSource {
    /// This enables the column reader to rewire the field IDs when the file changes (chain),
    /// using the fully qualified name as a search key in the descriptor of the other page sources.
    std::unordered_map<ROOT::DescriptorId_t, std::string> fFieldId2QualifiedName;
+   /// For projected fields, connect their qualified field name to the ID of their projection source.
+   std::unordered_map<std::string, ROOT::DescriptorId_t> fFieldName2ProjectionSource;
    std::vector<std::string> fColumnNames;
    std::vector<std::string> fColumnTypes;
    /// List of column readers returned by GetColumnReaders() organized by slot. Used to reconnect readers

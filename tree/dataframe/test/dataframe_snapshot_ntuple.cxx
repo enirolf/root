@@ -538,6 +538,46 @@ TEST(RDFSnapshotRNTuple, TDirectory)
    EXPECT_EQ(expected, sdf.GetColumnNames());
 }
 
+TEST(RDFSnapshotRNTuple, ProjectedFields)
+{
+   FileRAII fileGuard{"RDFSnapshotRNTuple_projected_fields.root"};
+
+   {
+      auto model = ROOT::RNTupleModel::Create();
+
+      model->MakeField<std::vector<Electron>>("electron");
+      auto ptProjection = ROOT::RFieldBase::Create("electron_pt", "std::vector<float>").Unwrap();
+      model->AddProjectedField(std::move(ptProjection), [](const std::string &fieldName) {
+         if (fieldName == "electron_pt._0")
+            return "electron._0.pt";
+
+         return "electron";
+      });
+
+      auto cardinalityFld = std::make_unique<ROOT::RField<ROOT::RNTupleCardinality<std::uint32_t>>>("nElectrons");
+      model->AddProjectedField(std::move(cardinalityFld), [](const std::string &) { return "electron"; });
+
+      auto writer = ROOT::RNTupleWriter::Recreate(std::move(model), "ntuple", fileGuard.GetPath());
+      auto electron = writer->GetModel().GetDefaultEntry().GetPtr<std::vector<Electron>>("electron");
+
+      for (unsigned i = 0; i < 5; ++i) {
+         *electron = {Electron{1.f * i}, Electron{2.f * i}, Electron{3.f * i}};
+         writer->Fill();
+      }
+   }
+
+   ROOT::RDF::RSnapshotOptions opts;
+   opts.fMode = "UPDATE";
+   opts.fOutputFormat = ROOT::RDF::ESnapshotOutputFormat::kRNTuple;
+   ROOT::RDataFrame df("ntuple", fileGuard.GetPath());
+
+   auto sdf = df.Snapshot("ntuple_snap1", fileGuard.GetPath(), "", opts);
+
+   // Check that it is also possible to specify the name of the projected columns before the original columns.
+   auto sdfWithColNames =
+      df.Snapshot("ntuple_snap2", fileGuard.GetPath(), {"nElectrons", "electron", "electron.pt"}, opts);
+}
+
 class RDFSnapshotRNTupleFromTTreeTest : public ::testing::Test {
 protected:
    const std::string fFileName = "RDFSnapshotRNTuple_ttree_fixture.root";
