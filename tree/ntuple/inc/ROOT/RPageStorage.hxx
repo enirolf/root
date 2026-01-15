@@ -335,6 +335,9 @@ public:
       const ROOT::Internal::RColumnElementBase *fElement =
          nullptr;                             ///< Corresponds to the page's elements, for size calculation etc.
       std::uint32_t fCompressionSettings = 0; ///< Compression algorithm and level to apply
+      /// If true, use SZ3 compression rather than what is specified in fCompressionSettings for floating-point type
+      /// pages.
+      bool fUseLossyCompression = false;
       /// Adds a 8 byte little-endian xxhash3 checksum to the page payload. The buffer has to be large enough to
       /// to store the additional 8 bytes.
       bool fWriteChecksum = true;

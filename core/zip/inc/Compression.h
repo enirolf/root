@@ -101,6 +101,8 @@ struct RCompressionSetting {
          kLZ4,
          /// Use ZSTD compression
          kZSTD,
+         /// Use *lossy* SZ3 compression, only applicable to floating-point data
+         kSZ3,
          /// Undefined compression algorithm (must be kept the last of the list in case a new algorithm is added).
          kUndefined
       };

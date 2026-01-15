@@ -712,6 +712,8 @@ ROOT::Internal::RPageStorage::RSealedPage ROOT::Internal::RPageSink::SealPage(co
    auto nBytesPacked = config.fPage->GetNBytes();
    auto nBytesChecksum = config.fWriteChecksum * kNBytesPageChecksum;
 
+   // TODO check that if lossy compression is set, byte splitting is turned off.
+
    if (!config.fElement->IsMappable()) {
       nBytesPacked = config.fElement->GetPackedSize(config.fPage->GetNElements());
       pageBuf = new unsigned char[nBytesPacked];
@@ -720,8 +722,14 @@ ROOT::Internal::RPageStorage::RSealedPage ROOT::Internal::RPageSink::SealPage(co
    }
    auto nBytesZipped = nBytesPacked;
 
-   if ((config.fCompressionSettings != 0) || !config.fElement->IsMappable() || !config.fAllowAlias ||
-       config.fWriteChecksum) {
+   if (config.fUseLossyCompression && config.fElement->GetIdentifier().fOnDiskType == ENTupleColumnType::kReal32) {
+      nBytesZipped = ROOT::Internal::RNTupleCompressor::ZipLossy(pageBuf, nBytesPacked, config.fBuffer);
+      if (!isAdoptedBuffer)
+         delete[] pageBuf;
+      pageBuf = reinterpret_cast<unsigned char *>(config.fBuffer);
+      isAdoptedBuffer = true;
+   } else if ((config.fCompressionSettings != 0) || !config.fElement->IsMappable() || !config.fAllowAlias ||
+              config.fWriteChecksum) {
       nBytesZipped =
          ROOT::Internal::RNTupleCompressor::Zip(pageBuf, nBytesPacked, config.fCompressionSettings, config.fBuffer);
       if (!isAdoptedBuffer)
@@ -741,7 +749,13 @@ ROOT::Internal::RPageStorage::RSealedPage ROOT::Internal::RPageSink::SealPage(co
 ROOT::Internal::RPageStorage::RSealedPage
 ROOT::Internal::RPageSink::SealPage(const ROOT::Internal::RPage &page, const RColumnElementBase &element)
 {
-   const auto nBytes = page.GetNBytes() + GetWriteOptions().GetEnablePageChecksums() * kNBytesPageChecksum;
+   auto nBytes = page.GetNBytes() + GetWriteOptions().GetEnablePageChecksums() * kNBytesPageChecksum;
+
+   if (GetWriteOptions().GetUseLossyCompression()) {
+      // SZ3 requires a larger target buffer.
+      nBytes += (1024 * 16);
+   }
+
    if (fSealPageBuffer.size() < nBytes)
       fSealPageBuffer.resize(nBytes);
 
@@ -749,6 +763,7 @@ ROOT::Internal::RPageSink::SealPage(const ROOT::Internal::RPage &page, const RCo
    config.fPage = &page;
    config.fElement = &element;
    config.fCompressionSettings = GetWriteOptions().GetCompression();
+   config.fUseLossyCompression = GetWriteOptions().GetUseLossyCompression();
    config.fWriteChecksum = GetWriteOptions().GetEnablePageChecksums();
    config.fAllowAlias = true;
    config.fBuffer = fSealPageBuffer.data();

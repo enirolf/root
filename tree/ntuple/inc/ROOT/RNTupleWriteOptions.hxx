@@ -209,6 +209,7 @@ protected:
    /// Specifies the max size of a payload storeable into a single TKey. When writing an RNTuple to a ROOT file,
    /// any payload whose size exceeds this will be split into multiple keys.
    std::uint64_t fMaxKeySize = kDefaultMaxKeySize;
+   bool fUseLossyCompression = false;
 
 public:
 
@@ -263,6 +264,9 @@ public:
    void SetEnableSamePageMerging(bool val);
 
    std::uint64_t GetMaxKeySize() const { return fMaxKeySize; }
+
+   bool GetUseLossyCompression() const { return fUseLossyCompression; }
+   void SetUseLossyCompression(bool val) { fUseLossyCompression = val; }
 
    friend bool operator==(const RNTupleWriteOptions &lhs, const RNTupleWriteOptions &rhs)
    {

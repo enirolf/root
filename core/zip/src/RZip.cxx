@@ -13,6 +13,7 @@
 #include "ZipLZMA.h"
 #include "ZipLZ4.h"
 #include "ZipZSTD.h"
+#include "ZipSZ3.h"
 
 #include "zlib.h"
 
@@ -112,6 +113,11 @@ void R__zipMultipleAlgorithm(int cxlevel, int *srcsize, char *src, int *tgtsize,
      // a surprising change in algorithm in a future version of ROOT.
      R__zipZLIB(cxlevel, srcsize, src, tgtsize, tgt, irep);
   }
+}
+
+void R__zipLossy(int *srcsize, char *src, int *tgtsize, char *tgt, int *irep)
+{
+   R__zipSZ3(srcsize, src, tgtsize, tgt, irep);
 }
 
   // The very old algorithm for backward compatibility
@@ -271,10 +277,15 @@ static int is_valid_header_zstd(unsigned char *src)
    return src[0] == 'Z' && src[1] == 'S' && src[2] == '\1';
 }
 
+static int is_valid_header_sz3(unsigned char *src)
+{
+   return src[0] == 'S' && src[1] == 'Z' && src[2] == '\3';
+}
+
 static int is_valid_header(unsigned char *src)
 {
    return is_valid_header_zlib(src) || is_valid_header_old(src) || is_valid_header_lzma(src) ||
-          is_valid_header_lz4(src) || is_valid_header_zstd(src);
+          is_valid_header_lz4(src) || is_valid_header_zstd(src) || is_valid_header_sz3(src);
 }
 
 ROOT::RCompressionSetting::EAlgorithm::EValues R__getCompressionAlgorithm(const unsigned char *buf, size_t bufsize)
@@ -290,6 +301,8 @@ ROOT::RCompressionSetting::EAlgorithm::EValues R__getCompressionAlgorithm(const 
       return ROOT::RCompressionSetting::EAlgorithm::kLZ4;
    if (is_valid_header_lzma(const_cast<unsigned char *>(buf)))
       return ROOT::RCompressionSetting::EAlgorithm::kLZMA;
+   if (is_valid_header_sz3(const_cast<unsigned char *>(buf)))
+      return ROOT::RCompressionSetting::EAlgorithm::kSZ3;
    if (is_valid_header_old(const_cast<unsigned char *>(buf)))
       return ROOT::RCompressionSetting::EAlgorithm::kOldCompressionAlgo;
 
@@ -386,6 +399,9 @@ void R__unzip(int *srcsize, uch *src, int *tgtsize, uch *tgt, int *irep)
       return;
    } else if (is_valid_header_zstd(src)) {
       R__unzipZSTD(srcsize, src, tgtsize, tgt, irep);
+      return;
+   } else if (is_valid_header_sz3(src)) {
+      R__unzipSZ3(srcsize, src, tgtsize, tgt, irep);
       return;
    }
 

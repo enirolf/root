@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -80,6 +81,35 @@ public:
       }
       R__ASSERT(szRemaining == 0);
       R__ASSERT(szZipData < nbytes);
+      return szZipData;
+   }
+
+   static std::size_t ZipLossy(const void *from, std::size_t nbytes, void *to)
+   {
+      assert(from != nullptr);
+      assert(to != nullptr);
+
+      unsigned int nZipBlocks = 1 + (nbytes - 1) / kMAXZIPBUF;
+      char *source = const_cast<char *>(static_cast<const char *>(from));
+      int szTarget = nbytes + 16384; // NOTE hardcoded garbage
+      char *target = reinterpret_cast<char *>(to);
+      int szOutBlock = 0;
+      int szRemaining = nbytes;
+      std::size_t szZipData = 0;
+      for (unsigned int i = 0; i < nZipBlocks; ++i) {
+         int szSource = std::min(static_cast<int>(kMAXZIPBUF), szRemaining);
+         R__zipLossy(&szSource, source, &szTarget, target, &szOutBlock);
+         assert(szOutBlock >= 0);
+         if ((szOutBlock == 0) || (szOutBlock >= szSource)) {
+            assert(false && "uncompressible");
+         }
+         szZipData += szOutBlock;
+         source += szSource;
+         target += szOutBlock;
+         szRemaining -= szSource;
+      }
+      assert(szRemaining == 0);
+      assert(szZipData < nbytes);
       return szZipData;
    }
 };

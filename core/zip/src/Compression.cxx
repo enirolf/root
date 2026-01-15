@@ -32,6 +32,7 @@ namespace ROOT {
      case EAlgorithm::EValues::kOldCompressionAlgo: return "Old compression algorithm";
      case EAlgorithm::EValues::kLZ4: return "lz4";
      case EAlgorithm::EValues::kZSTD: return "zstd";
+     case EAlgorithm::EValues::kSZ3: return "SZ3";
      default: return "Undefined compression algorithm";
      }
   }
