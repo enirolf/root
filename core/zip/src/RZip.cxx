@@ -115,9 +115,9 @@ void R__zipMultipleAlgorithm(int cxlevel, int *srcsize, char *src, int *tgtsize,
   }
 }
 
-void R__zipLossy(int *srcsize, char *src, int *tgtsize, char *tgt, int *irep)
+void R__zipLossy(int *srcsize, char *src, int *tgtsize, char *tgt, int *irep, float errbound)
 {
-   R__zipSZ3(srcsize, src, tgtsize, tgt, irep);
+   R__zipSZ3(srcsize, src, tgtsize, tgt, irep, errbound);
 }
 
   // The very old algorithm for backward compatibility

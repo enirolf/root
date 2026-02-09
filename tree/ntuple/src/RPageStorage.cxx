@@ -723,7 +723,8 @@ ROOT::Internal::RPageStorage::RSealedPage ROOT::Internal::RPageSink::SealPage(co
    auto nBytesZipped = nBytesPacked;
 
    if (config.fUseLossyCompression && config.fElement->GetIdentifier().fOnDiskType == ENTupleColumnType::kReal32) {
-      nBytesZipped = ROOT::Internal::RNTupleCompressor::ZipLossy(pageBuf, nBytesPacked, config.fBuffer);
+      nBytesZipped =
+         ROOT::Internal::RNTupleCompressor::ZipLossy(pageBuf, nBytesPacked, config.fBuffer, config.fLossyErrorBound);
       if (!isAdoptedBuffer)
          delete[] pageBuf;
       pageBuf = reinterpret_cast<unsigned char *>(config.fBuffer);
@@ -764,6 +765,7 @@ ROOT::Internal::RPageSink::SealPage(const ROOT::Internal::RPage &page, const RCo
    config.fElement = &element;
    config.fCompressionSettings = GetWriteOptions().GetCompression();
    config.fUseLossyCompression = GetWriteOptions().GetUseLossyCompression();
+   config.fLossyErrorBound = GetWriteOptions().GetLossyErrorBound();
    config.fWriteChecksum = GetWriteOptions().GetEnablePageChecksums();
    config.fAllowAlias = true;
    config.fBuffer = fSealPageBuffer.data();

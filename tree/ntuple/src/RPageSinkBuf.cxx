@@ -189,6 +189,7 @@ void ROOT::Internal::RPageSinkBuf::CommitPage(ColumnHandle_t columnHandle, const
       config.fElement = &element;
       config.fCompressionSettings = GetWriteOptions().GetCompression();
       config.fUseLossyCompression = GetWriteOptions().GetUseLossyCompression();
+      config.fLossyErrorBound = GetWriteOptions().GetLossyErrorBound();
       config.fWriteChecksum = GetWriteOptions().GetEnablePageChecksums();
       config.fAllowAlias = false;
       config.fBuffer = zipItem.fBuf.get();
@@ -226,6 +227,7 @@ void ROOT::Internal::RPageSinkBuf::CommitPage(ColumnHandle_t columnHandle, const
       config.fElement = &element;
       config.fCompressionSettings = GetWriteOptions().GetCompression();
       config.fUseLossyCompression = GetWriteOptions().GetUseLossyCompression();
+      config.fLossyErrorBound = GetWriteOptions().GetLossyErrorBound();
       config.fWriteChecksum = GetWriteOptions().GetEnablePageChecksums();
       // Make sure the page buffer is not aliased so that we can free the uncompressed page.
       config.fAllowAlias = false;

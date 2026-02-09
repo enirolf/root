@@ -9,12 +9,12 @@ static constexpr int kHeaderSize = 9;
 // NOTE assumes data is FLOAT
 static constexpr int kElemSize = sizeof(float);
 
-void R__zipSZ3(int *srcsize, char *src, int *tgtsize, char *tgt, int *irep)
+void R__zipSZ3(int *srcsize, char *src, int *tgtsize, char *tgt, int *irep, float errbound)
 {
    SZ3::Config config(*srcsize / kElemSize);
 
    config.errorBoundMode = SZ3::EB_ABS;
-   config.absErrorBound = 0.0005;
+   config.absErrorBound = errbound;
 
    auto retval =
       SZ_compress<float>(config, (float *)src, &tgt[kHeaderSize], static_cast<std::size_t>(*tgtsize - kHeaderSize));

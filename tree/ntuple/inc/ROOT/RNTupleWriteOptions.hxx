@@ -210,9 +210,9 @@ protected:
    /// any payload whose size exceeds this will be split into multiple keys.
    std::uint64_t fMaxKeySize = kDefaultMaxKeySize;
    bool fUseLossyCompression = false;
+   float fLossyErrorBound = 0.0005;
 
 public:
-
    virtual ~RNTupleWriteOptions() = default;
    virtual std::unique_ptr<RNTupleWriteOptions> Clone() const;
 
@@ -268,6 +268,9 @@ public:
    bool GetUseLossyCompression() const { return fUseLossyCompression; }
    void SetUseLossyCompression(bool val) { fUseLossyCompression = val; }
 
+   float GetLossyErrorBound() const { return fLossyErrorBound; }
+   void SetLossyErrorBound(float val) { fLossyErrorBound = val; }
+
    friend bool operator==(const RNTupleWriteOptions &lhs, const RNTupleWriteOptions &rhs)
    {
       return lhs.fCompression == rhs.fCompression && lhs.fApproxZippedClusterSize == rhs.fApproxZippedClusterSize &&
@@ -277,7 +280,8 @@ public:
              lhs.fUseBufferedWrite == rhs.fUseBufferedWrite && lhs.fUseDirectIO == rhs.fUseDirectIO &&
              lhs.fWriteBufferSize == rhs.fWriteBufferSize && lhs.fUseImplicitMT == rhs.fUseImplicitMT &&
              lhs.fEnablePageChecksums == rhs.fEnablePageChecksums &&
-             lhs.fEnableSamePageMerging == rhs.fEnableSamePageMerging && lhs.fMaxKeySize == rhs.fMaxKeySize;
+             lhs.fEnableSamePageMerging == rhs.fEnableSamePageMerging && lhs.fMaxKeySize == rhs.fMaxKeySize &&
+             lhs.fUseLossyCompression == rhs.fUseLossyCompression && lhs.fLossyErrorBound == rhs.fLossyErrorBound;
    }
 
    friend bool operator!=(const RNTupleWriteOptions &lhs, const RNTupleWriteOptions &rhs) { return !(lhs == rhs); }

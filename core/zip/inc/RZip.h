@@ -24,10 +24,10 @@ extern "C" unsigned long R__memcompress(char *tgt, unsigned long tgtsize, char *
 extern "C" void R__zipMultipleAlgorithm(int cxlevel, int *srcsize, char *src, int *tgtsize, char *tgt, int *irep,
                                         ROOT::RCompressionSetting::EAlgorithm::EValues algorithm);
 
-extern "C" void R__zipLossy(int *srcsize, char *src, int *tgtsize, char *tgt, int *irep);
+extern "C" void R__zipLossy(int *srcsize, char *src, int *tgtsize, char *tgt, int *irep, float errbound);
 
-extern "C" ROOT::RCompressionSetting::EAlgorithm::EValues R__getCompressionAlgorithm(const unsigned char *buf, 
-                                                                                     size_t bufsize);
+extern "C" ROOT::RCompressionSetting::EAlgorithm::EValues
+R__getCompressionAlgorithm(const unsigned char *buf, size_t bufsize);
 
 extern "C" void R__unzip(int *srcsize, unsigned char *src, int *tgtsize, unsigned char *tgt, int *irep);
 

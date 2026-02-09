@@ -6,7 +6,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-void R__zipSZ3(int *srcsize, char *src, int *tgtsize, char *tgt, int *irep);
+void R__zipSZ3(int *srcsize, char *src, int *tgtsize, char *tgt, int *irep, float errbound);
 void R__unzipSZ3(int *srcsize, unsigned char *src, int *tgtsize, unsigned char *tgt, int *irep);
 #ifdef __cplusplus
 }

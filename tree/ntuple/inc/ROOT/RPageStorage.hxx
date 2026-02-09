@@ -338,8 +338,11 @@ public:
       /// If true, use SZ3 compression rather than what is specified in fCompressionSettings for floating-point type
       /// pages.
       bool fUseLossyCompression = false;
-      /// Adds a 8 byte little-endian xxhash3 checksum to the page payload. The buffer has to be large enough to
-      /// to store the additional 8 bytes.
+      /// If fUseLossyCompression is set, this parameter sets the upper limit on the allowed error bound used by the
+      /// compression algorithm (SZ3).
+      float fLossyErrorBound = 0.0005;
+      /// Adds a 8 byte little-endian xxhash3 checksum to the page payload. The buffer has
+      /// to be large enough to to store the additional 8 bytes.
       bool fWriteChecksum = true;
       /// If false, the output buffer must not point to the input page buffer, which would otherwise be an option
       /// if the page is mappable and should not be compressed

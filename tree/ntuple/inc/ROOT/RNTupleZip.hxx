@@ -84,7 +84,7 @@ public:
       return szZipData;
    }
 
-   static std::size_t ZipLossy(const void *from, std::size_t nbytes, void *to)
+   static std::size_t ZipLossy(const void *from, std::size_t nbytes, void *to, float errorBound)
    {
       assert(from != nullptr);
       assert(to != nullptr);
@@ -98,7 +98,7 @@ public:
       std::size_t szZipData = 0;
       for (unsigned int i = 0; i < nZipBlocks; ++i) {
          int szSource = std::min(static_cast<int>(kMAXZIPBUF), szRemaining);
-         R__zipLossy(&szSource, source, &szTarget, target, &szOutBlock);
+         R__zipLossy(&szSource, source, &szTarget, target, &szOutBlock, errorBound);
          assert(szOutBlock >= 0);
          if ((szOutBlock == 0) || (szOutBlock >= szSource)) {
             assert(false && "uncompressible");
