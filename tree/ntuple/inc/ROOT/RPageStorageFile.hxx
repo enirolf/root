@@ -112,6 +112,10 @@ public:
 
    std::unique_ptr<RPageSink>
    CloneAsHidden(std::string_view name, const ROOT::RNTupleWriteOptions &opts) const override;
+
+#ifdef R__ENABLE_COW_MERGING
+   void CopyOnWrite(const std::string &srcName, const std::string &srcPath);
+#endif
 }; // class RPageSinkFile
 
 // clang-format off

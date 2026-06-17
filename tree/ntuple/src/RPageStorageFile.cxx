@@ -24,6 +24,9 @@
 #include <ROOT/RRawFileTFile.hxx>
 #include <ROOT/RNTupleTypes.hxx>
 #include <ROOT/RNTupleUtils.hxx>
+#ifdef R__ENABLE_COW_MERGING
+#include <ROOT/RFile.hxx>
+#endif
 
 #include <RVersion.h>
 #include <TDirectory.h>
@@ -285,9 +288,18 @@ ROOT::Internal::RPageSinkFile::CommitClusterGroupImpl(unsigned char *serializedP
    auto szPageListZip =
       RNTupleCompressor::Zip(serializedPageList, length, GetWriteOptions().GetCompression(), bufPageListZip.get());
 
+   #ifdef R__ENABLE_COW_MERGING
+   fWriter->WritePadding();
+   #endif
+
    RNTupleLocator result;
    result.SetNBytesOnStorage(szPageListZip);
    result.SetPosition(fWriter->WriteBlob(bufPageListZip.get(), szPageListZip, length));
+
+   #ifdef R__ENABLE_COW_MERGING
+   fWriter->WritePadding();
+   #endif
+
    return result;
 }
 
@@ -321,6 +333,98 @@ ROOT::Internal::RPageSinkFile::CloneAsHidden(std::string_view name, const ROOT::
    return cloned;
 }
 
+#ifdef R__ENABLE_COW_MERGING
+void ROOT::Internal::RPageSinkFile::CopyOnWrite(const std::string &srcName, const std::string &srcPath)
+{
+   auto srcPageSource = ROOT::Internal::RPageSourceFile::Create(srcName, srcPath);
+   srcPageSource->Attach();
+   auto sourceDesc = srcPageSource->GetSharedDescriptorGuard().GetRef().Clone();
+   auto &currDestDesc = fDescriptorBuilder.GetDescriptor();
+
+   ROOT::NTupleSize_t lastColOffset = currDestDesc.GetNEntries();
+   ROOT::NTupleSize_t lastPageOffset = 0;
+   std::size_t nClusterGroups = currDestDesc.GetNClusterGroups();
+   lastPageOffset =
+      (nClusterGroups == 0
+          ? 0
+          : currDestDesc.GetClusterGroupDescriptor(nClusterGroups - 1)
+                  .GetPageListLocator()
+                  .GetPosition<ROOT::NTupleSize_t>() +
+               currDestDesc.GetClusterGroupDescriptor(nClusterGroups - 1).GetPageListLocator().GetNBytesOnStorage());
+
+   std::size_t currClusterCount = currDestDesc.GetNClusters();
+
+   auto newDestDesc = currDestDesc.Clone();
+
+   std::vector<RClusterDescriptorBuilder> clusters;
+   std::size_t clusterIdxIncr = 0;
+   for (const auto &srcClusterGroup : sourceDesc.GetClusterGroupIterable()) {
+      assert(srcClusterGroup.GetNClusters() > 0);
+
+      // compute the start and lenght of the cluster group in the source ntuple
+      std::size_t dataStartPos = sourceDesc.GetClusterDescriptor(srcClusterGroup.GetClusterIds()[0])
+                                    .GetPageRange(0)
+                                    .GetPageInfos()[0]
+                                    .GetLocator()
+                                    .GetPosition<std::size_t>();
+      constexpr std::uint64_t blockAlign = RNTupleFileWriter::GetBlockAlign();
+      std::size_t dataStartPosAligned = (dataStartPos + blockAlign - 1) / blockAlign * blockAlign;
+      std::size_t dataEndPos = srcClusterGroup.GetPageListLocator().GetPosition<std::size_t>();
+      std::size_t dataLength = dataEndPos - dataStartPosAligned;
+
+      // share the data blocks in the source ntuple with the writer
+      fWriter->ShareBlocks(srcPath, dataLength, dataStartPosAligned);
+
+      // update the destination ntuple metadata
+      lastPageOffset =
+         // lastPageOffset == 0 ? dataStartPos : lastPageOffset;
+         lastPageOffset == 0 ? dataStartPosAligned : (lastPageOffset + blockAlign - 1) / blockAlign * blockAlign;
+      // TODO verify and update docs
+      // Being the second cluster, the page locator will have as position the header size (assumed rounded up to the
+      // nearest block size). Thus, subtract the header size from this offset in order to adjust the page position with
+      // respect to the new cluster (in the merged tuple) and to the position in the old cluster
+      lastPageOffset -= dataStartPos;
+
+      for (auto srcClusterIdx : srcClusterGroup.GetClusterIds()) {
+         auto srcClusterDesc = sourceDesc.GetClusterDescriptor(srcClusterIdx).Clone();
+         auto &clusterDescBuilder = RClusterDescriptorBuilder()
+                                       .ClusterId(currClusterCount + clusterIdxIncr)
+                                       .FirstEntryIndex(srcClusterDesc.GetFirstEntryIndex() + lastColOffset)
+                                       .NEntries(srcClusterDesc.GetNEntries());
+         clusters.emplace_back(std::move(clusterDescBuilder));
+
+         for (std::size_t currDestColIdx = 0; currDestColIdx < currDestDesc.GetNPhysicalColumns(); currDestColIdx++) {
+            auto nSourcePages = srcClusterDesc.GetPageRange(currDestColIdx).GetPageInfos().size();
+            RClusterDescriptor::RPageRange newPageRange;
+            newPageRange.SetPhysicalColumnId(currDestColIdx);
+            for (std::size_t srcPageIdx = 0; srcPageIdx < nSourcePages; srcPageIdx++) {
+               std::uint32_t nElems =
+                  srcClusterDesc.GetPageRange(currDestColIdx).GetPageInfos()[srcPageIdx].GetNElements();
+               ROOT::RNTupleLocator locator =
+                  srcClusterDesc.GetPageRange(currDestColIdx).GetPageInfos()[srcPageIdx].GetLocator();
+               bool hasChecksum = srcClusterDesc.GetPageRange(currDestColIdx).GetPageInfos()[srcPageIdx].HasChecksum();
+               locator.SetPosition(locator.GetPosition<std::size_t>() + lastPageOffset);
+               newPageRange.GetPageInfos().emplace_back(nElems, locator, hasChecksum);
+            }
+            std::uint64_t colOffset = srcClusterDesc.GetColumnRange(currDestColIdx).GetFirstElementIndex();
+            colOffset += lastColOffset;
+            clusters[clusterIdxIncr].CommitColumnRange(currDestColIdx, colOffset, GetWriteOptions().GetCompression(),
+                                                       newPageRange);
+         }
+         fDescriptorBuilder.AddCluster(clusters[clusterIdxIncr].MoveDescriptor().Unwrap());
+         clusterIdxIncr++;
+      }
+      CommitClusterGroup();
+   }
+
+   // std::size_t seekDataPos = anchor->GetSeekHeader() + anchor->GetNBytesHeader();
+   // std::size_t seekDataPosAligned = (seekDataPos + fWriter->GetBlockAlign() - 1) / fWriter->GetBlockAlign() *
+   // fWriter->GetBlockAlign();
+
+   // fPageSink
+}
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ROOT::Internal::RPageSourceFile::RPageSourceFile(std::string_view ntupleName, const ROOT::RNTupleReadOptions &opts)
@@ -330,16 +434,14 @@ ROOT::Internal::RPageSourceFile::RPageSourceFile(std::string_view ntupleName, co
    fFileCounters = std::make_unique<RFileCounters>(RFileCounters{
       *fMetrics.MakeCounter<RNTupleAtomicCounter *>("szSkip", "B",
                                                     "cumulative seek distance (excluding header/footer reads)"),
+      *fMetrics.MakeCounter<RNTupleCalcPerf *>("szFile", "B", "total file size", fMetrics,
+                                               [this](const RNTupleMetrics &) -> std::pair<bool, double> {
+                                                  if (fFileSize > 0)
+                                                     return {true, static_cast<double>(fFileSize)};
+                                                  return {false, -1.};
+                                               }),
       *fMetrics.MakeCounter<RNTupleCalcPerf *>(
-         "szFile", "B", "total file size", fMetrics,
-         [this](const RNTupleMetrics &) -> std::pair<bool, double> {
-            if (fFileSize > 0)
-               return {true, static_cast<double>(fFileSize)};
-            return {false, -1.};
-         }),
-      *fMetrics.MakeCounter<RNTupleCalcPerf *>(
-         "randomness", "",
-         "ratio of seek distance to bytes read (excluding file structure reads)", fMetrics,
+         "randomness", "", "ratio of seek distance to bytes read (excluding file structure reads)", fMetrics,
          [](const RNTupleMetrics &metrics) -> std::pair<bool, double> {
             if (const auto szSkip = metrics.GetLocalCounter("szSkip")) {
                if (const auto szReadPayload = metrics.GetLocalCounter("szReadPayload")) {
@@ -354,8 +456,7 @@ ROOT::Internal::RPageSourceFile::RPageSourceFile(std::string_view ntupleName, co
             return {false, -1.};
          }),
       *fMetrics.MakeCounter<RNTupleCalcPerf *>(
-         "sparseness", "",
-         "ratio of bytes read to total file size (excluding file structure reads)", fMetrics,
+         "sparseness", "", "ratio of bytes read to total file size (excluding file structure reads)", fMetrics,
          [this](const RNTupleMetrics &metrics) -> std::pair<bool, double> {
             if (fFileSize > 0) {
                if (const auto szReadPayload = metrics.GetLocalCounter("szReadPayload")) {
@@ -710,8 +811,8 @@ ROOT::Internal::RPageSourceFile::LoadClusters(std::span<RCluster::RKey> clusterK
       for (std::size_t i = 0; i < nBatch; ++i) {
          const auto offset = readRequests[iReq + i].fOffset;
          if (fLastOffset != 0) {
-            const auto distance = static_cast<std::uint64_t>(std::abs(
-               static_cast<std::int64_t>(offset) - static_cast<std::int64_t>(fLastOffset)));
+            const auto distance = static_cast<std::uint64_t>(
+               std::abs(static_cast<std::int64_t>(offset) - static_cast<std::int64_t>(fLastOffset)));
             fFileCounters->fSzSkip.Add(distance);
          }
          fLastOffset = offset + readRequests[iReq + i].fSize;

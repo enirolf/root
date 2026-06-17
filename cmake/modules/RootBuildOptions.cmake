@@ -182,6 +182,8 @@ ROOT_BUILD_OPTION(x11 ON "Enable support for X11/Xft")
 ROOT_BUILD_OPTION(xml ON "Enable support for XML (requires libxml2)")
 ROOT_BUILD_OPTION(xrootd ON "Enable support for XRootD file server and client")
 
+ROOT_BUILD_OPTION(ntuple_cow_merge OFF "Enable copy-on-write merging for RNTuple")
+
 option(all "Enable all optional components by default" OFF)
 option(clingtest "Enable cling tests (Note: that this makes llvm/clang symbols visible in libCling)" OFF)
 option(fail-on-missing "Fail at configure time if a required package cannot be found" OFF)

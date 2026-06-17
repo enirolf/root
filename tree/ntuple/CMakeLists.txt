@@ -128,6 +128,12 @@ if(curl)
   target_link_libraries(ROOTNTuple PRIVATE nlohmann_json::nlohmann_json)
 endif()
 
+if(ntuple_cow_merge)
+  set(ROOTNTuple_EXTRA_HEADERS ROOT/RNTupleCoWMerger.hxx)
+  target_sources(ROOTNTuple PRIVATE src/RNTupleCoWMerger.cxx)
+  target_compile_definitions(ROOTNTuple PRIVATE R__ENABLE_COW_MERGING)
+endif()
+
 if(MSVC)
   target_compile_definitions(ROOTNTuple PRIVATE _USE_MATH_DEFINES)
 endif()

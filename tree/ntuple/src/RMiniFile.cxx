@@ -44,6 +44,11 @@
 
 #ifdef R__LINUX
 #include <fcntl.h>
+
+#ifdef R__ENABLE_COW_MERGING
+#include <linux/fs.h>
+#include <sys/ioctl.h>
+#endif
 #endif
 
 #ifndef R__LITTLE_ENDIAN
@@ -1529,6 +1534,9 @@ std::uint64_t ROOT::Internal::RNTupleFileWriter::WriteNTupleHeader(const void *d
    fNTupleAnchor.fLenHeader = lenHeader;
    fNTupleAnchor.fNBytesHeader = nbytes;
    fNTupleAnchor.fSeekHeader = offset;
+#if R__ENABLE_COW_MERGING
+   WritePadding();
+#endif
    return offset;
 }
 
@@ -1714,3 +1722,61 @@ void ROOT::Internal::RNTupleFileWriter::WriteTFileSkeleton(int defaultCompressio
       fileSimple.Write(&padding, sizeof(padding));
    fileSimple.fKeyOffset = fileSimple.fFilePos;
 }
+
+#ifdef R__ENABLE_COW_MERGING
+std::uint64_t ROOT::Internal::RNTupleFileWriter::WritePadding()
+{
+   if (!std::holds_alternative<RImplSimple>(fFile)) {
+      throw std::runtime_error("padding is only supported for simple files");
+   }
+   auto &simpleFile = std::get<RImplSimple>(fFile);
+   std::size_t currFilePos = ftell(simpleFile.fFile);
+   std::size_t alignedSize =
+      (currFilePos + simpleFile.kBlockAlign - 1 / simpleFile.kBlockAlign * simpleFile.kBlockAlign);
+   std::size_t paddingSize = alignedSize - currFilePos;
+   if (paddingSize > 0) {
+      std::vector<char> alignedBuff(paddingSize, 0xAB);
+      simpleFile.Write(alignedBuff.data(), paddingSize);
+   }
+   return 0;
+}
+
+void ROOT::Internal::RNTupleFileWriter::ShareBlocks(const std::string &srcPath, std::size_t srcSize,
+                                                    std::size_t srcOffset)
+{
+   // TODO fix for non-posix systems
+   int srcFd = open(srcPath.c_str(), O_RDONLY);
+
+   if (srcFd < 0) {
+      throw std::runtime_error("could not open source file \"" + srcPath + "\"");
+   }
+
+   if (!std::holds_alternative<RImplSimple>(fFile)) {
+      throw std::runtime_error("CoW merging is only supported for simple files");
+   }
+   auto &simpleFile = std::get<RImplSimple>(fFile);
+   int destFd = fileno(simpleFile.fFile);
+   if (destFd < 0) {
+      throw std::runtime_error("could not get filed descriptor for destination file \"" + fFileName + "\"");
+   }
+   // auto access_mode = fcntl(destFd, F_GETFL);
+
+   fflush(simpleFile.fFile);
+
+   file_clone_range cloneDetails;
+
+   cloneDetails.src_fd = srcFd;
+   cloneDetails.src_length = srcSize;
+   cloneDetails.src_offset = srcOffset;
+   cloneDetails.dest_offset = simpleFile.fFilePos;
+
+   if (ioctl(destFd, FICLONERANGE, &cloneDetails) < 0) {
+      throw std::runtime_error("failed to share between src and dest (errno " + std::to_string(errno) + ")");
+   }
+
+   simpleFile.fFilePos += srcSize;
+   fseek(simpleFile.fFile, simpleFile.fFilePos, SEEK_SET);
+   fflush(simpleFile.fFile);
+}
+
+#endif
