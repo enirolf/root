@@ -180,6 +180,9 @@ if(curl)
   ROOT_ADD_GTEST(ntuple_storage_s3 ntuple_storage_s3.cxx LIBRARIES ROOTNTuple)
 endif()
 
+if (ntuple_cow_merge)
+  ROOT_ADD_GTEST(ntuple_cow_merge ntuple_cow_merge.cxx LIBRARIES ROOTNTuple)
+endif()
 
 # RNTuple Python interface tests
 if(pyroot)

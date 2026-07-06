@@ -300,6 +300,12 @@ public:
    RNTupleLink Commit(int compression = RCompressionSetting::EDefaults::kUseGeneralPurpose);
 
    std::string_view GetNTupleName() const { return fNTupleName; }
+
+#ifdef R__ENABLE_COW_MERGING
+   static constexpr std::uint64_t GetBlockAlign() { return RImplSimple::kBlockAlign; };
+   std::uint64_t WritePadding();
+   void ShareBlocks(const std::string &srcPath, std::size_t srcLen, std::size_t srcOffset);
+#endif
 };
 
 } // namespace Internal
